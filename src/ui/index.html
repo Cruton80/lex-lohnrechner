@@ -222,6 +222,25 @@
       .result-label {
         font-weight: 600;
         color: #333;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pap-badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        font-size: 0.75em;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+        cursor: help;
+        margin-left: auto;
+      }
+
+      .pap-badge:hover {
+        background: #764ba2;
       }
 
       .result-value {
@@ -229,6 +248,22 @@
         font-size: 1.1em;
         font-weight: 700;
         color: #667eea;
+        margin-top: 2px;
+      }
+
+      .result-percent {
+        text-align: right;
+        font-size: 0.85em;
+        color: #666;
+        margin-top: 2px;
+      }
+
+      .result-hint {
+        text-align: right;
+        font-size: 0.8em;
+        color: #f57c00;
+        font-style: italic;
+        margin-top: 2px;
       }
 
       .pap-reference {
@@ -500,67 +535,115 @@
             <h2>📊 Ergebnisse</h2>
 
             <div class="results" id="results">
-              <div class="result-item">
-                <div class="result-label">Bruttolohn</div>
-                <div class="result-value" id="result-brutto">-</div>
-              </div>
-
-              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">Lohnsteuer &amp; Zuschläge</h3>
+              <!-- EINGABEZUSAMMENFASSUNG -->
+              <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 4px">
                 <div class="result-item">
-                  <div class="result-label">Lohnsteuer</div>
-                  <div class="result-value" id="result-lst">-</div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Solidaritätszuschlag</div>
-                  <div class="result-value" id="result-solz">-</div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Kirchensteuer 8%</div>
-                  <div class="result-value" id="result-kst8">-</div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Kirchensteuer 9%</div>
-                  <div class="result-value" id="result-kst9">-</div>
+                  <div class="result-label">Bruttolohn</div>
+                  <div class="result-value" id="result-brutto">-</div>
                 </div>
               </div>
 
+              <!-- LOHNSTEUER & ZUSCHLÄGE -->
               <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">Sozialversicherung</h3>
+                <h3 style="color: #667eea; margin-bottom: 15px">🏛️ Lohnsteuer &amp; Zuschläge</h3>
                 <div class="result-item">
-                  <div class="result-label">Rentenversicherung</div>
-                  <div class="result-value" id="result-rv">-</div>
+                  <div class="result-label">Lohnsteuer <span class="pap-badge">PAP S.12</span></div>
+                  <div>
+                    <div class="result-value" id="result-lst">-</div>
+                    <div class="result-percent" id="result-lst-percent"></div>
+                  </div>
                 </div>
 
                 <div class="result-item">
-                  <div class="result-label">Arbeitslosenversicherung</div>
-                  <div class="result-value" id="result-alv">-</div>
+                  <div class="result-label">Solidaritätszuschlag <span class="pap-badge">PAP S.16</span></div>
+                  <div>
+                    <div class="result-value" id="result-solz">-</div>
+                    <div class="result-percent" id="result-solz-percent"></div>
+                    <div class="result-hint" id="result-solz-hint"></div>
+                  </div>
                 </div>
 
                 <div class="result-item">
-                  <div class="result-label">Krankenversicherung</div>
-                  <div class="result-value" id="result-kv">-</div>
+                  <div class="result-label">Kirchensteuer 8% <span class="pap-badge">PAP S.17</span></div>
+                  <div>
+                    <div class="result-value" id="result-kst8">-</div>
+                    <div class="result-percent" id="result-kst8-percent"></div>
+                  </div>
                 </div>
 
                 <div class="result-item">
-                  <div class="result-label">Pflegeversicherung</div>
-                  <div class="result-value" id="result-pv">-</div>
+                  <div class="result-label">Kirchensteuer 9% <span class="pap-badge">PAP S.17</span></div>
+                  <div>
+                    <div class="result-value" id="result-kst9">-</div>
+                    <div class="result-percent" id="result-kst9-percent"></div>
+                  </div>
                 </div>
               </div>
 
+              <!-- SOZIALVERSICHERUNG -->
               <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">Zusammenfassung</h3>
+                <h3 style="color: #667eea; margin-bottom: 15px">🏥 Sozialversicherung</h3>
+                <div class="result-item">
+                  <div class="result-label">Rentenversicherung <span class="pap-badge">PAP S.7</span></div>
+                  <div>
+                    <div class="result-value" id="result-rv">-</div>
+                    <div class="result-percent" id="result-rv-percent"></div>
+                  </div>
+                </div>
+
+                <div class="result-item">
+                  <div class="result-label">Arbeitslosenversicherung <span class="pap-badge">PAP S.7</span></div>
+                  <div>
+                    <div class="result-value" id="result-alv">-</div>
+                    <div class="result-percent" id="result-alv-percent"></div>
+                  </div>
+                </div>
+
+                <div class="result-item">
+                  <div class="result-label">Krankenversicherung <span class="pap-badge">PAP S.8</span></div>
+                  <div>
+                    <div class="result-value" id="result-kv">-</div>
+                    <div class="result-percent" id="result-kv-percent"></div>
+                  </div>
+                </div>
+
+                <div class="result-item">
+                  <div class="result-label">Pflegeversicherung <span class="pap-badge">PAP S.8</span></div>
+                  <div>
+                    <div class="result-value" id="result-pv">-</div>
+                    <div class="result-percent" id="result-pv-percent"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BELASTUNGSQUOTEN -->
+              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
+                <h3 style="color: #667eea; margin-bottom: 15px">📈 Belastungsquoten</h3>
+                <div class="result-item">
+                  <div class="result-label">Durchschnitt (LSt)</div>
+                  <div class="result-value" id="result-avg-lst">-</div>
+                </div>
+                <div class="result-item">
+                  <div class="result-label">Durchschnitt (LSt + SZ)</div>
+                  <div class="result-value" id="result-avg-lst-solz">-</div>
+                </div>
+                <div class="result-item">
+                  <div class="result-label">Gesamtbelastung</div>
+                  <div class="result-value" id="result-avg-total">-</div>
+                </div>
+              </div>
+
+              <!-- ZUSAMMENFASSUNG -->
+              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
+                <h3 style="color: #667eea; margin-bottom: 15px">✓ Zusammenfassung</h3>
                 <div class="result-item">
                   <div class="result-label">Gesamtabzüge</div>
                   <div class="result-value" id="result-total">-</div>
                 </div>
 
                 <div class="result-item">
-                  <div class="result-label">Netto</div>
-                  <div class="result-value" id="result-netto" style="color: #4caf50">-</div>
+                  <div class="result-label">💰 Nettolohn</div>
+                  <div class="result-value" id="result-netto" style="color: #4caf50; font-size: 1.2em">-</div>
                 </div>
 
                 <div class="result-item">
@@ -569,10 +652,22 @@
                 </div>
               </div>
 
-              <div style="margin-top: 20px; padding: 15px; background: #f0f4ff; border-radius: 4px">
-                <p style="font-size: 0.85em; color: #667eea">
-                  <strong>Hinweis:</strong> Diese Berechnung erfolgt nach PAP 2026. Für offizielle
-                  Lohnsteuerberechnungen verwenden Sie bitte die behördlich zugelassenen Systeme.
+              <!-- AUDIT-INFO -->
+              <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px">
+                <p style="font-size: 0.85em; color: #1976D2; margin: 0">
+                  <strong>📋 Audit-ID:</strong> <code id="audit-id" style="background: white; padding: 2px 5px; border-radius: 2px">-</code>
+                </p>
+                <p style="font-size: 0.85em; color: #1976D2; margin: 8px 0 0 0">
+                  <button id="showAuditBtn" style="background: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 0.85em">📋 Audit-Trail anzeigen</button>
+                </p>
+              </div>
+
+              <!-- HINWEIS -->
+              <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px">
+                <p style="font-size: 0.85em; color: #856404; margin: 0">
+                  <strong>ℹ️ Hinweis:</strong> Diese Berechnung erfolgt nach PAP 2026 (Stand 12.11.2025).
+                  Für offizielle Lohnsteuerberechnungen verwenden Sie die behördlich zugelassenen Systeme.
+                  Alle Quellenangaben beziehen sich auf das offizielle PAP.
                 </p>
               </div>
             </div>

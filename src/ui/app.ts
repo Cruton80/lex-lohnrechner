@@ -8,6 +8,7 @@ import { ReferenceRegistry } from '../modules/ReferenceRegistry.js'
 import { TaxCalculator } from '../modules/TaxCalculator.js'
 import { SocialSecurityCalculator } from '../modules/SocialSecurityCalculator.js'
 import { AuditLogger } from '../modules/AuditLogger.js'
+import { ResultsFormatter } from '../modules/ResultsFormatter.js'
 import type { LohnsteuerInputs, ValidationError, ParameterSet } from '../types/index.js'
 import parametersData from '../data/parameters-2026.json'
 
@@ -301,6 +302,7 @@ function performCalculation(inputs: Partial<LohnsteuerInputs>): void {
       total,
       netto,
       quote,
+      auditId: completeResult.auditTraceId,
     })
 
     console.log('✅ Berechnung erfolgreich', {
@@ -335,6 +337,7 @@ interface CalculationResults {
   total: number // EUR in Cent
   netto: number // EUR in Cent
   quote: number // Prozentsatz
+  auditId?: string
 }
 
 function displayResults(results: CalculationResults): void {
@@ -346,18 +349,72 @@ function displayResults(results: CalculationResults): void {
     })
   }
 
+  const percent = (centWert: number, brutto: number) => {
+    if (brutto === 0) return '0,00%'
+    return `${((centWert / (brutto * 100)) * 100).toFixed(2)}%`
+  }
+
+  // Bruttolohn
   ;(document.getElementById('result-brutto') as HTMLElement).textContent = `${results.brutto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
+
+  // Lohnsteuer & Zuschläge
   ;(document.getElementById('result-lst') as HTMLElement).textContent = `${format(results.lst)} EUR`
+  ;(document.getElementById('result-lst-percent') as HTMLElement).textContent = percent(results.lst, results.brutto)
+
   ;(document.getElementById('result-solz') as HTMLElement).textContent = `${format(results.solz)} EUR`
+  ;(document.getElementById('result-solz-percent') as HTMLElement).textContent = percent(results.solz, results.brutto)
+  ;(document.getElementById('result-solz-hint') as HTMLElement).textContent =
+    results.solz === 0 ? 'Unter Freigrenze (20.350 EUR)' : 'Solidaritätszuschlag fällig'
+
   ;(document.getElementById('result-kst8') as HTMLElement).textContent = `${format(results.kv8)} EUR`
+  ;(document.getElementById('result-kst8-percent') as HTMLElement).textContent = percent(results.kv8, results.brutto)
+
   ;(document.getElementById('result-kst9') as HTMLElement).textContent = `${format(results.kv9)} EUR`
+  ;(document.getElementById('result-kst9-percent') as HTMLElement).textContent = percent(results.kv9, results.brutto)
+
+  // Sozialversicherung
   ;(document.getElementById('result-rv') as HTMLElement).textContent = `${format(results.rv)} EUR`
+  ;(document.getElementById('result-rv-percent') as HTMLElement).textContent = percent(results.rv, results.brutto)
+
   ;(document.getElementById('result-alv') as HTMLElement).textContent = `${format(results.alv)} EUR`
+  ;(document.getElementById('result-alv-percent') as HTMLElement).textContent = percent(results.alv, results.brutto)
+
   ;(document.getElementById('result-kv') as HTMLElement).textContent = `${format(results.kv)} EUR`
+  ;(document.getElementById('result-kv-percent') as HTMLElement).textContent = percent(results.kv, results.brutto)
+
   ;(document.getElementById('result-pv') as HTMLElement).textContent = `${format(results.pv)} EUR`
+  ;(document.getElementById('result-pv-percent') as HTMLElement).textContent = percent(results.pv, results.brutto)
+
+  // Belastungsquoten
+  const lstQuote = percent(results.lst, results.brutto)
+  const lstSolzQuote = percent(results.lst + results.solz, results.brutto)
+  const totalQuote = percent(results.total, results.brutto)
+
+  ;(document.getElementById('result-avg-lst') as HTMLElement).textContent = lstQuote
+  ;(document.getElementById('result-avg-lst-solz') as HTMLElement).textContent = lstSolzQuote
+  ;(document.getElementById('result-avg-total') as HTMLElement).textContent = totalQuote
+
+  // Zusammenfassung
   ;(document.getElementById('result-total') as HTMLElement).textContent = `${format(results.total)} EUR`
   ;(document.getElementById('result-netto') as HTMLElement).textContent = `${format(results.netto)} EUR`
   ;(document.getElementById('result-quote') as HTMLElement).textContent = `${results.quote.toFixed(1)}%`
+
+  // Audit-ID
+  if (results.auditId) {
+    ;(document.getElementById('audit-id') as HTMLElement).textContent = results.auditId
+  }
+
+  // Audit-Button
+  const auditBtn = document.getElementById('showAuditBtn') as HTMLButtonElement
+  if (auditBtn && results.auditId) {
+    auditBtn.onclick = () => {
+      const log = auditLogger.getLog(results.auditId!)
+      if (log) {
+        console.log('📋 Audit-Trail:', log)
+        alert(`Audit-Trail ${results.auditId}:\n\n${JSON.stringify(log.calculation_steps, null, 2)}`)
+      }
+    }
+  }
 
   resultsDiv.classList.add('show')
 }
