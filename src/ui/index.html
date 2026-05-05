@@ -393,6 +393,77 @@
       .footer a:hover {
         text-decoration: underline;
       }
+
+      /* Comparison Section */
+      .comparison-section {
+        display: none;
+      }
+
+      .comparison-section.show {
+        display: block;
+      }
+
+      .comparison-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 15px;
+        margin-top: 20px;
+      }
+
+      .comparison-item {
+        padding: 12px;
+        background: #f9f9f9;
+        border-radius: 4px;
+        border-left: 4px solid #667eea;
+      }
+
+      .comparison-item.changed {
+        border-left-color: #f57c00;
+        background: #fff3e0;
+      }
+
+      .comparison-item.added {
+        border-left-color: #4caf50;
+        background: #f1f8e9;
+      }
+
+      .comparison-item.removed {
+        border-left-color: #d32f2f;
+        background: #ffebee;
+      }
+
+      .change-label {
+        font-weight: 600;
+        font-size: 0.9em;
+        color: #333;
+        margin-bottom: 5px;
+      }
+
+      .change-values {
+        font-size: 0.85em;
+        color: #666;
+      }
+
+      .change-impact {
+        display: inline-block;
+        padding: 2px 6px;
+        background: white;
+        border-radius: 3px;
+        font-size: 0.75em;
+        font-weight: 600;
+        margin-top: 5px;
+        color: #f57c00;
+      }
+
+      .change-impact.high {
+        color: #d32f2f;
+        background: #ffebee;
+      }
+
+      .change-impact.low {
+        color: #1976d2;
+        background: #e3f2fd;
+      }
     </style>
   </head>
   <body>
@@ -401,6 +472,17 @@
         <h1>🔢 LexLohnRechner</h1>
         <p>Transparente Lohnsteuerberechnung 2026</p>
         <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.8">PAP-konforme Berechnung mit vollständiger Dokumentation</p>
+
+        <!-- JAHR-AUSWAHL -->
+        <div style="margin-top: 15px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; text-align: center">
+          <label style="color: white; font-weight: 600; margin-right: 10px">📅 Steuerjahr:</label>
+          <select id="yearSelect" style="padding: 6px 12px; border-radius: 3px; border: none; font-weight: 600">
+            <option value="2025">2025 (Archiv)</option>
+            <option value="2026" selected>2026 (Aktuell)</option>
+            <option value="2027">2027 (Vorlage)</option>
+          </select>
+          <button id="compareBtn" style="margin-left: 10px; padding: 6px 15px; background: white; color: #667eea; border: none; border-radius: 3px; font-weight: 600; cursor: pointer">📊 Vergleich</button>
+        </div>
       </div>
 
       <div class="content">
@@ -680,14 +762,24 @@
         </div>
       </div>
 
+      <!-- VERGLEICHS-SEKTION -->
+      <div class="comparison-section" id="comparisonSection" style="padding: 30px">
+        <h2 style="color: #667eea">📊 Jahresvergleich</h2>
+        <p id="comparisonTitle"></p>
+
+        <div id="comparisonContent"></div>
+
+        <button id="backToCalcBtn" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600">← Zurück zur Berechnung</button>
+      </div>
+
       <div class="footer">
         <p>
-          <strong>LexLohnRechner v1.0</strong> — Lohnsteuerberechnung nach PAP 2026 |
-          <a href="#" onclick="alert('Dokumentation wird geladen...')">Dokumentation</a> |
+          <strong>LexLohnRechner v1.0 (Phase 4)</strong> — Lohnsteuerberechnung nach PAP |
+          <a href="#" onclick="alert('Dokumentation: BENUTZERHANDBUCH.md')">Dokumentation</a> |
           <a href="#" onclick="alert('Kontakt: marc.grethen@gmail.com')">Kontakt</a>
         </p>
         <p style="margin-top: 10px; font-size: 0.85em">
-          Alle Berechnungen erfolgen nach dem offiziellen Programmablaufplan (PAP) 2026
+          Alle Berechnungen erfolgen nach dem offiziellen Programmablaufplan (PAP)
         </p>
       </div>
     </div>

@@ -9,8 +9,11 @@ import { TaxCalculator } from '../modules/TaxCalculator.js'
 import { SocialSecurityCalculator } from '../modules/SocialSecurityCalculator.js'
 import { AuditLogger } from '../modules/AuditLogger.js'
 import { ResultsFormatter } from '../modules/ResultsFormatter.js'
+import { VersionManager } from '../modules/VersionManager.js'
 import type { LohnsteuerInputs, ValidationError, ParameterSet } from '../types/index.js'
-import parametersData from '../data/parameters-2026.json'
+import parameters2025 from '../data/parameters-2025.json'
+import parameters2026 from '../data/parameters-2026.json'
+import parameters2027 from '../data/parameters-2027.json'
 
 // ============================================================================
 // INITIALISIERUNG
@@ -18,9 +21,17 @@ import parametersData from '../data/parameters-2026.json'
 
 const validator = new InputValidator(2026)
 const references = new ReferenceRegistry()
-const parameters = parametersData as ParameterSet
-const taxCalculator = new TaxCalculator(parameters)
-const socialCalculator = new SocialSecurityCalculator(parameters)
+
+// VersionManager für mehrjähriges Support
+const versionManager = new VersionManager()
+versionManager.registerVersion(parameters2025 as ParameterSet)
+versionManager.registerVersion(parameters2026 as ParameterSet)
+versionManager.registerVersion(parameters2027 as ParameterSet)
+
+let currentYear = 2026
+let currentParameters = parameters2026 as ParameterSet
+let taxCalculator = new TaxCalculator(currentParameters)
+let socialCalculator = new SocialSecurityCalculator(currentParameters)
 const auditLogger = new AuditLogger()
 
 // DOM Elements
@@ -53,6 +64,21 @@ const fields = {
 
 calculateBtn.addEventListener('click', handleCalculate)
 resetBtn.addEventListener('click', handleReset)
+
+// Year selection
+const yearSelect = document.getElementById('yearSelect') as HTMLSelectElement
+yearSelect.addEventListener('change', (e) => {
+  const year = parseInt((e.target as HTMLSelectElement).value)
+  switchYear(year)
+})
+
+// Comparison button
+const compareBtn = document.getElementById('compareBtn') as HTMLButtonElement
+compareBtn.addEventListener('click', showComparison)
+
+// Back button
+const backBtn = document.getElementById('backToCalcBtn') as HTMLButtonElement
+backBtn.addEventListener('click', hideComparison)
 
 // Real-time validation
 Object.values(fields).forEach((field) => {
@@ -420,9 +446,107 @@ function displayResults(results: CalculationResults): void {
 }
 
 // ============================================================================
+// JAHRES-AUSWAHL & VERGLEICH
+// ============================================================================
+
+function switchYear(year: number): void {
+  const params = versionManager.getVersion(year)
+  if (!params) {
+    alert(`Parameter für Jahr ${year} nicht gefunden`)
+    return
+  }
+
+  currentYear = year
+  currentParameters = params
+  taxCalculator = new TaxCalculator(currentParameters)
+  socialCalculator = new SocialSecurityCalculator(currentParameters)
+
+  console.log(`✅ Gewechselt zu Jahr ${year}`)
+
+  // Reset results
+  ;(document.getElementById('results') as HTMLElement).classList.remove('show')
+}
+
+function showComparison(): void {
+  const availableYears = versionManager.getAvailableYears()
+
+  if (availableYears.length < 2) {
+    alert('Mindestens 2 Jahre erforderlich für Vergleich')
+    return
+  }
+
+  // Vergleich mit Vorjahr
+  const previousYear = availableYears.filter((y) => y < currentYear).pop()
+  if (!previousYear) {
+    alert('Kein Vorjahr für Vergleich verfügbar')
+    return
+  }
+
+  const changelog = versionManager.compareVersions(previousYear, currentYear)
+
+  // HTML generieren
+  let html = `
+    <h3>Änderungen ${previousYear} → ${currentYear}</h3>
+    <p><strong>Veröffentlichung PAP:</strong> ${changelog.published_date}</p>
+    <p><strong>Gesamte Änderungen:</strong> ${changelog.summary.total_changes}</p>
+    <p><strong>Kritische Änderungen:</strong> ${changelog.summary.high_impact_changes}</p>
+
+    <div class="comparison-grid">
+  `
+
+  for (const diff of changelog.differences) {
+    const impactClass = diff.impact
+    const changeType = diff.change_type
+
+    html += `
+      <div class="comparison-item ${changeType}">
+        <div class="change-label">${diff.field_name}</div>
+        <div class="change-values">
+          <strong>${previousYear}:</strong> ${formatComparisonValue(diff.old_value)}<br>
+          <strong>${currentYear}:</strong> ${formatComparisonValue(diff.new_value)}
+        </div>
+        <div class="change-impact ${impactClass}">${impactClass.toUpperCase()}</div>
+      </div>
+    `
+  }
+
+  html += '</div>'
+
+  const comparisonContent = document.getElementById('comparisonContent') as HTMLElement
+  comparisonContent.innerHTML = html
+
+  // Zeige Vergleichs-Sektion
+  ;(document.getElementById('comparisonSection') as HTMLElement).classList.add('show')
+  ;(document.querySelector('.content') as HTMLElement).style.display = 'none'
+
+  console.log('📊 Vergleich angezeigt')
+}
+
+function hideComparison(): void {
+  ;(document.getElementById('comparisonSection') as HTMLElement).classList.remove('show')
+  ;(document.querySelector('.content') as HTMLElement).style.display = 'grid'
+}
+
+function formatComparisonValue(value: any): string {
+  if (typeof value === 'number') {
+    if (value > 100000) {
+      return `${(value / 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })} EUR`
+    }
+    if (value < 1 && value > 0) {
+      return `${(value * 100).toFixed(2)}%`
+    }
+    return value.toFixed(2)
+  }
+  if (typeof value === 'object') {
+    return '[Komplexe Struktur]'
+  }
+  return String(value)
+}
+
+// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
-console.log('✅ LexLohnRechner v1.0 - Phase 1 loaded')
-console.log('📦 Parameters loaded:', parametersData.version)
+console.log('✅ LexLohnRechner v1.0 (Phase 4) - VersionManager aktiviert')
+console.log('📦 Available years:', versionManager.getAvailableYears())
 console.log('🔗 References registered:', references.getAllReferences().size)

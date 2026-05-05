@@ -1,0 +1,181 @@
+{
+  "version": "2025.1.0",
+  "jahr": 2025,
+  "valid_from": "2025-01-01",
+  "valid_to": "2025-12-31",
+  "pap_reference": "2024-11-12-PAP-2025-anlage-1.pdf",
+  "pap_publication_date": "2024-11-12",
+  "pap_pages": 40,
+  "rechtliche_grundlage": "§ 39b Absatz 6 EStG, Programmablaufplan-Verpflichtung",
+
+  "tariff": {
+    "jahr": 2025,
+    "grundfreibetrag": 1146000,
+    "spitzensteuersatz_ab": 6262000,
+    "spitzensteuersatz_prozent": 0.45,
+    "formeln": {
+      "zone_A": {
+        "min": 0,
+        "max": 1146000,
+        "beschreibung": "Befreit von Einkommensteuer"
+      },
+      "zone_B": {
+        "min": 1146000,
+        "max": 6262000,
+        "beschreibung": "Progressive Besteuerung",
+        "formel": "LSt = (889.75 * y + 18.90) * y, wobei y = (zu_versteuerndes_einkommen - 11460) / 10000"
+      },
+      "zone_C": {
+        "min": 6262000,
+        "max": 18600000,
+        "beschreibung": "Einheitlicher Steuersatz 42%",
+        "formel": "LSt = 0.42 * zu_versteuerndes_einkommen - 9756.28"
+      },
+      "zone_D": {
+        "min": 18600000,
+        "beschreibung": "Spitzensteuersatz 45%",
+        "formel": "LSt = 0.45 * zu_versteuerndes_einkommen - 17385.92"
+      }
+    },
+    "pap_pages": "12-13",
+    "note": "2025: Grundfreibetrag 11.460 EUR (2024: 11.600 EUR)"
+  },
+
+  "contributions": {
+    "RV": {
+      "name": "Rentenversicherung",
+      "rate_percent": 18.6,
+      "employee_percent": 9.3,
+      "employer_percent": 9.3,
+      "beitragsbemessungsgrenze_west": 9960000,
+      "beitragsbemessungsgrenze_ost": 10620000,
+      "note": "West: 99.600 EUR, Ost: 106.200 EUR",
+      "pap_page": 7,
+      "law": "§ 168 SGB VI"
+    },
+    "ALV": {
+      "name": "Arbeitslosenversicherung",
+      "rate_percent": 2.6,
+      "employee_percent": 2.6,
+      "employer_percent": 2.6,
+      "beitragsbemessungsgrenze": 9960000,
+      "note": "Beitragsbemessungsgrenze 2025: 99.600 EUR",
+      "pap_page": 7,
+      "law": "§ 341 SGB III"
+    },
+    "KV": {
+      "name": "Krankenversicherung",
+      "basis_rate_percent": 14.0,
+      "employee_percent": 7.0,
+      "employer_percent": 7.0,
+      "beitragsbemessungsgrenze": 6615000,
+      "note": "Beitragsbemessungsgrenze 2025: 66.150 EUR",
+      "zusatzbeitrag": {
+        "durchschnitt_percent": 2.5,
+        "kassenindividuell": true
+      },
+      "pap_page": 8,
+      "law": "§ 242 SGB V, § 242a SGB V"
+    },
+    "PV": {
+      "name": "Pflegeversicherung",
+      "basis_rate_percent": 3.6,
+      "employee_percent": 1.8,
+      "employer_percent": 1.8,
+      "zuschlag_kinderlos_percent": 0.6,
+      "abschlag_pro_kind_percent": 0.25,
+      "sachsen_zuschlag_percent": 0.75,
+      "pap_page": 8,
+      "law": "§ 55 SGB XI"
+    }
+  },
+
+  "solidarity": {
+    "name": "Solidaritätszuschlag",
+    "rate_percent": 5.5,
+    "freigrenze": 1695600,
+    "freigrenze_note": "2025: 16.956 EUR (wird 2026 erhöht auf 20.350 EUR)",
+    "law": "§ 5 SolzG (Solidaritätszuschlaggesetz)",
+    "pap_page": 16,
+    "note": "Freigrenze noch nicht erhöht (wird 2026 durch SteFeG erhöht)"
+  },
+
+  "church_tax": {
+    "name": "Kirchensteuer",
+    "rates": {
+      "standard": 8.0,
+      "bavaria_bw": 9.0
+    },
+    "calculation": "Prozentsatz * Lohnsteuer",
+    "pap_page": 17,
+    "law": "§ 51a EStG",
+    "note": "Wird nur berechnet bei Erfassung der Religionszugehörigkeit"
+  },
+
+  "special_cases": {
+    "minijob": {
+      "grenze": 52000,
+      "note": "2025: 520 EUR/Monat",
+      "lohnsteuer_pauschal_percent": 2.0,
+      "rv_pauschal_percent": 3.6,
+      "alv_pauschal_percent": 1.3,
+      "pap_page": 8,
+      "law": "§ 8 SGB IV, § 428 SGB III"
+    },
+    "gleitzone": {
+      "lower": 52000,
+      "upper": 150000,
+      "note": "2025: 520 EUR bis 1.500 EUR/Monat",
+      "rv_abgestuft": true,
+      "alv_vollbeitrag": true,
+      "pap_page": 9,
+      "law": "§ 163 SGB VI, § 20 SGB IV"
+    },
+    "altersentlastung": {
+      "minimum_alter": 64,
+      "law": "§ 24a EStG",
+      "staffelung_nach_geburtsjahr": true,
+      "pap_page": 11
+    },
+    "abfindung": {
+      "regelung": "Fünftel-Regelung",
+      "law": "§ 34 EStG",
+      "pap_page": 10
+    },
+    "sonderzahlungen": {
+      "behandlung": "Zum Bruttoeinkommen addieren",
+      "pap_page": 10,
+      "law": "§ 39 Abs. 1 Nr. 2 EStG"
+    }
+  },
+
+  "child_allowance": {
+    "betrag_pro_kind_jaehrlich": 548000,
+    "betrag_pro_kind_monatlich": 45666,
+    "note": "2025: 5.480 EUR/Jahr ≈ 456,66 EUR/Monat",
+    "law": "§ 32 Abs. 6 EStG (Kinderfreibetrag)",
+    "pap_page": 10
+  },
+
+  "validation_test_cases": [
+    {
+      "testcase_id": 1,
+      "beschreibung": "Standard-Fall: STKL I, 5.000 EUR Monatslohn",
+      "bruttolohn": 500000,
+      "stkl": 1,
+      "lohnzz": 2,
+      "expected_lst": 78500,
+      "expected_solz": 4318,
+      "source": "Blatt 'prüft PAP' Zeile 15"
+    }
+  ],
+
+  "metadata": {
+    "erstellt_am": "2024-11-12",
+    "version_status": "Produktiv",
+    "letzte_aenderung": "2024-11-12",
+    "geaendert_von": "PAP-Publikation",
+    "validiert_gegen": "AM_Lohnsteuer251.xlsm",
+    "validierungs_status": "Archiv"
+  }
+}
