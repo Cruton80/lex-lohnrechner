@@ -1,0 +1,30 @@
+{
+  "name": "lex-lohnrechner",
+  "version": "1.0.0",
+  "description": "HTML Webtool für transparente Lohnsteuerberechnung mit PAP-Integration",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "keywords": [
+    "lohnsteuer",
+    "pap",
+    "steuern",
+    "deutschland"
+  ],
+  "author": "Marc Grethen",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@vitest/ui": "^1.0.4",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.7",
+    "vitest": "^1.0.4"
+  },
+  "dependencies": {}
+}
