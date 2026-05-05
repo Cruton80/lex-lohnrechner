@@ -5,7 +5,10 @@
 
 import { InputValidator } from '../modules/InputValidator.js'
 import { ReferenceRegistry } from '../modules/ReferenceRegistry.js'
-import type { LohnsteuerInputs, ValidationError } from '../types/index.js'
+import { TaxCalculator } from '../modules/TaxCalculator.js'
+import { SocialSecurityCalculator } from '../modules/SocialSecurityCalculator.js'
+import { AuditLogger } from '../modules/AuditLogger.js'
+import type { LohnsteuerInputs, ValidationError, ParameterSet } from '../types/index.js'
 import parametersData from '../data/parameters-2026.json'
 
 // ============================================================================
@@ -14,6 +17,10 @@ import parametersData from '../data/parameters-2026.json'
 
 const validator = new InputValidator(2026)
 const references = new ReferenceRegistry()
+const parameters = parametersData as ParameterSet
+const taxCalculator = new TaxCalculator(parameters)
+const socialCalculator = new SocialSecurityCalculator(parameters)
+const auditLogger = new AuditLogger()
 
 // DOM Elements
 const form = document.getElementById('taxForm') as HTMLFormElement
@@ -246,42 +253,78 @@ function displayValidationErrors(errors: ValidationError[]): void {
 // ============================================================================
 
 function performCalculation(inputs: Partial<LohnsteuerInputs>): void {
-  // Phase 1: Zeige nur die Eingaben an
-  // Phase 2: Hier kommt die echte TaxCalculator-Berechnung
+  try {
+    // Phase 2: Echte Berechnungen mit vollständiger Nachverfolgung
+    const auditId = auditLogger.startCalculation(inputs as LohnsteuerInputs)
 
-  const brutto = (inputs.bruttolohn || 0) / 100
+    // Lohnsteuer berechnen
+    const taxResult = taxCalculator.calculateTaxes(inputs as LohnsteuerInputs)
 
-  // Dummy-Berechnung für Phase 1
-  const lst = Math.round(brutto * 0.15)
-  const solz = Math.round(lst * 0.055)
-  const rv = Math.round(brutto * 0.093)
-  const alv = Math.round(brutto * 0.026)
-  const kv = Math.round(brutto * 0.07)
-  const pv = Math.round(brutto * 0.018)
-  const total = lst + solz + rv + alv + kv + pv
-  const netto = Math.round(brutto - total)
-  const quote = ((total / brutto) * 100).toFixed(2)
+    // Sozialversicherung berechnen
+    const svResult = socialCalculator.calculateContributions(inputs as LohnsteuerInputs)
 
-  // Update Results
-  displayResults({
-    brutto,
-    lst,
-    solz,
-    kv8: Math.round(lst * 0.08),
-    kv9: Math.round(lst * 0.09),
-    rv,
-    alv,
-    kv,
-    pv,
-    total,
-    netto,
-    quote: parseFloat(quote),
-  })
+    // Ergebnisse kombinieren
+    const completeResult = {
+      ...taxResult,
+      rvBeitrag: svResult.rvBeitrag,
+      alvBeitrag: svResult.alvBeitrag,
+      kvBeitrag: svResult.kvBeitrag,
+      pvBeitrag: svResult.pvBeitrag,
+      auditTraceId: auditId,
+      calculatedAt: new Date(),
+    }
+
+    // Audit-Log beenden
+    auditLogger.finishCalculation(completeResult)
+
+    // Ergebnisse anzeigen
+    const brutto = (inputs.bruttolohn || 0) / 100
+    const total = (completeResult.lstlzz +
+                  completeResult.solzlzz +
+                  completeResult.rvBeitrag +
+                  completeResult.alvBeitrag +
+                  completeResult.kvBeitrag +
+                  completeResult.pvBeitrag)
+    const netto = (inputs.bruttolohn || 0) - total
+    const quote = brutto > 0 ? ((total / (inputs.bruttolohn || 0)) * 100) : 0
+
+    displayResults({
+      brutto,
+      lst: completeResult.lstlzz,
+      solz: completeResult.solzlzz,
+      kv8: completeResult.kist8lzz,
+      kv9: completeResult.kist9lzz,
+      rv: completeResult.rvBeitrag,
+      alv: completeResult.alvBeitrag,
+      kv: completeResult.kvBeitrag,
+      pv: completeResult.pvBeitrag,
+      total,
+      netto,
+      quote,
+    })
+
+    console.log('✅ Berechnung erfolgreich', {
+      auditId,
+      brutto: brutto.toFixed(2),
+      netto: (netto / 100).toFixed(2),
+    })
+  } catch (error) {
+    console.error('❌ Berechnungsfehler:', error)
+    validationDiv.innerHTML = `
+      <div class="validation-summary errors show">
+        <h3>❌ Fehler bei Berechnung</h3>
+        <ul>
+          <li>${error instanceof Error ? error.message : 'Unbekannter Fehler'}</li>
+        </ul>
+      </div>
+    `
+    validationDiv.classList.add('show')
+  }
 }
 
 interface CalculationResults {
-  brutto: number
-  lst: number
+  brutto: number // EUR (nicht Cent!)
+  lst: number // EUR in Cent
   solz: number
   kv8: number
   kv9: number
@@ -289,25 +332,31 @@ interface CalculationResults {
   alv: number
   kv: number
   pv: number
-  total: number
-  netto: number
-  quote: number
+  total: number // EUR in Cent
+  netto: number // EUR in Cent
+  quote: number // Prozentsatz
 }
 
 function displayResults(results: CalculationResults): void {
-  const format = (value: number) => `${(value / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
+  const format = (centWert: number) => {
+    const eur = centWert / 100
+    return eur.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  }
 
-  ;(document.getElementById('result-brutto') as HTMLElement).textContent = format(results.brutto * 100)
-  ;(document.getElementById('result-lst') as HTMLElement).textContent = format(results.lst * 100)
-  ;(document.getElementById('result-solz') as HTMLElement).textContent = format(results.solz * 100)
-  ;(document.getElementById('result-kst8') as HTMLElement).textContent = format(results.kv8 * 100)
-  ;(document.getElementById('result-kst9') as HTMLElement).textContent = format(results.kv9 * 100)
-  ;(document.getElementById('result-rv') as HTMLElement).textContent = format(results.rv * 100)
-  ;(document.getElementById('result-alv') as HTMLElement).textContent = format(results.alv * 100)
-  ;(document.getElementById('result-kv') as HTMLElement).textContent = format(results.kv * 100)
-  ;(document.getElementById('result-pv') as HTMLElement).textContent = format(results.pv * 100)
-  ;(document.getElementById('result-total') as HTMLElement).textContent = format(results.total * 100)
-  ;(document.getElementById('result-netto') as HTMLElement).textContent = format(results.netto * 100)
+  ;(document.getElementById('result-brutto') as HTMLElement).textContent = `${results.brutto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
+  ;(document.getElementById('result-lst') as HTMLElement).textContent = `${format(results.lst)} EUR`
+  ;(document.getElementById('result-solz') as HTMLElement).textContent = `${format(results.solz)} EUR`
+  ;(document.getElementById('result-kst8') as HTMLElement).textContent = `${format(results.kv8)} EUR`
+  ;(document.getElementById('result-kst9') as HTMLElement).textContent = `${format(results.kv9)} EUR`
+  ;(document.getElementById('result-rv') as HTMLElement).textContent = `${format(results.rv)} EUR`
+  ;(document.getElementById('result-alv') as HTMLElement).textContent = `${format(results.alv)} EUR`
+  ;(document.getElementById('result-kv') as HTMLElement).textContent = `${format(results.kv)} EUR`
+  ;(document.getElementById('result-pv') as HTMLElement).textContent = `${format(results.pv)} EUR`
+  ;(document.getElementById('result-total') as HTMLElement).textContent = `${format(results.total)} EUR`
+  ;(document.getElementById('result-netto') as HTMLElement).textContent = `${format(results.netto)} EUR`
   ;(document.getElementById('result-quote') as HTMLElement).textContent = `${results.quote.toFixed(1)}%`
 
   resultsDiv.classList.add('show')
