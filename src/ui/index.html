@@ -315,6 +315,13 @@
         font-size: 12px;
       }
 
+      table.results td.formula-cell {
+        color: var(--text-muted);
+        font-size: 11px;
+        font-style: italic;
+        padding-right: 8px;
+      }
+
       table.results td.percent {
         text-align: right;
         color: var(--text-muted);
@@ -622,6 +629,105 @@
       @media (max-width: 1000px) {
         .grid { grid-template-columns: 1fr; }
       }
+
+      /* ── PASSWORD OVERLAY ────────────────────────────────── */
+      #password-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--primary);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .password-box {
+        background: white;
+        border-radius: var(--r-lg);
+        padding: 40px 36px;
+        text-align: center;
+        box-shadow: var(--sh-lg);
+        max-width: 360px;
+        width: 90%;
+      }
+      .password-box h2 { color: var(--primary); margin-bottom: 6px; font-size: 18px; }
+      .password-box .pw-sub { color: var(--text-muted); margin-bottom: 20px; font-size: 12px; }
+      .password-box p.pw-label { color: var(--text-sec); margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+      .password-box input {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 16px;
+        border: 2px solid var(--border-mid);
+        border-radius: var(--r-sm);
+        margin-bottom: 10px;
+        font-family: inherit;
+        box-sizing: border-box;
+        text-align: center;
+        letter-spacing: 3px;
+      }
+      .password-box input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,51,102,.12); }
+      .password-box button {
+        width: 100%;
+        padding: 10px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--r-sm);
+        font-size: 14px;
+        font-family: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background .15s;
+      }
+      .password-box button:hover { background: var(--primary-hover); }
+      .password-error { color: #ef4444; font-size: 12px; margin-top: 8px; }
+
+      /* ── DOKUMENTATION TIMELINE ──────────────────────────── */
+      .timeline { border-left: 3px solid var(--border-mid); margin-left: 8px; }
+      .timeline-entry { position: relative; padding: 0 0 22px 28px; }
+      .timeline-entry::before {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 5px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--primary);
+        border: 2px solid white;
+        box-shadow: var(--sh-sm);
+      }
+      .timeline-time { font-size: 11px; color: var(--text-faint); margin-bottom: 3px; font-weight: 500; }
+      .timeline-phase {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 10px 3px;
+        border-radius: 99px;
+        margin-bottom: 6px;
+        letter-spacing: .3px;
+      }
+      .timeline-body { font-size: 13px; color: var(--text-sec); line-height: 1.6; }
+      .timeline-body ul { margin: 4px 0 0 0; padding-left: 18px; }
+      .timeline-body li { margin-bottom: 2px; }
+      .doc-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .doc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--surface-dim);
+        border: 1px solid var(--border-mid);
+        border-radius: var(--r-sm);
+        font-size: 12px;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background .15s, border-color .15s;
+      }
+      .doc-link:hover { background: var(--primary-bg); border-color: var(--primary); }
     </style>
   </head>
   <body>
@@ -642,6 +748,7 @@
       <button data-tab="parameter">Parameter</button>
       <button data-tab="papimport">PAP-Import</button>
       <button data-tab="audit">Audit</button>
+      <button data-tab="dokumentation">Dokumentation</button>
     </nav>
 
     <main>
@@ -768,19 +875,13 @@
             </div>
 
             <h3>Sonstiges</h3>
-            <div class="form-grid-2">
-              <div class="form-row" data-field="kirchensteuer">
-                <label>Kirchensteuer</label>
-                <select id="kirchensteuer">
-                  <option value="0" selected>Keine</option>
-                  <option value="8">8% (BY/BW)</option>
-                  <option value="9">9% (übrige)</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label>&nbsp;</label>
-                <button class="small-button outline" onclick="resetForm()" style="width: 100%">&#8635; Zurücksetzen</button>
-              </div>
+            <div class="form-row" data-field="kirchensteuer">
+              <label>Kirchensteuer</label>
+              <select id="kirchensteuer">
+                <option value="0" selected>Keine</option>
+                <option value="8">8% (BY/BW)</option>
+                <option value="9">9% (übrige)</option>
+              </select>
             </div>
 
             <h3>Beschäftigungsform</h3>
@@ -824,6 +925,10 @@
             </div>
 
             <div id="conflicts-container"></div>
+
+            <div style="margin-top: 14px; text-align: right; border-top: 1px solid var(--border); padding-top: 12px">
+              <button class="small-button outline" onclick="resetForm()">&#8635; Formular zurücksetzen</button>
+            </div>
           </div>
 
           <!-- ERGEBNIS PANEL -->
@@ -835,7 +940,7 @@
                 <tr>
                   <th>Position</th>
                   <th>Aktueller Zeitraum</th>
-                  <th id="header-next">Jährlich</th>
+                  <th>Formel / Herleitung</th>
                 </tr>
               </thead>
               <tbody>
@@ -843,7 +948,7 @@
                 <tr class="brutto">
                   <td>Bruttolohn</td>
                   <td class="value" id="r-brutto">5.000,00 EUR</td>
-                  <td class="value-secondary" id="r-brutto-y">60.000,00 EUR</td>
+                  <td class="formula-cell" id="r-brutto-formula">-</td>
                 </tr>
 
                 <!-- Steuern -->
@@ -851,17 +956,17 @@
                 <tr>
                   <td>Lohnsteuer <span class="pap-badge" data-pap="lst">PAP S.12</span></td>
                   <td class="value" id="r-lst">-</td>
-                  <td class="value-secondary" id="r-lst-y">-</td>
+                  <td class="formula-cell" id="r-lst-formula">-</td>
                 </tr>
                 <tr>
                   <td>Solidaritätszuschlag <span class="pap-badge" data-pap="solz">PAP S.16</span></td>
                   <td class="value" id="r-solz">-</td>
-                  <td class="value-secondary" id="r-solz-y">-</td>
+                  <td class="formula-cell" id="r-solz-formula">-</td>
                 </tr>
                 <tr id="row-kirch" style="display: none">
                   <td>Kirchensteuer <span class="pap-badge" data-pap="kirch">PAP S.17</span></td>
                   <td class="value" id="r-kirch">-</td>
-                  <td class="value-secondary" id="r-kirch-y">-</td>
+                  <td class="formula-cell" id="r-kirch-formula">-</td>
                 </tr>
 
                 <!-- Sozialversicherung -->
@@ -869,34 +974,34 @@
                 <tr>
                   <td>Rentenversicherung <span class="pap-badge" data-pap="rv">PAP S.7</span></td>
                   <td class="value" id="r-rv">-</td>
-                  <td class="value-secondary" id="r-rv-y">-</td>
+                  <td class="formula-cell" id="r-rv-formula">-</td>
                 </tr>
                 <tr>
                   <td>Arbeitslosenversicherung <span class="pap-badge" data-pap="alv">PAP S.7</span></td>
                   <td class="value" id="r-alv">-</td>
-                  <td class="value-secondary" id="r-alv-y">-</td>
+                  <td class="formula-cell" id="r-alv-formula">-</td>
                 </tr>
                 <tr>
                   <td>Krankenversicherung <span class="pap-badge" data-pap="kv">PAP S.8</span></td>
                   <td class="value" id="r-kv">-</td>
-                  <td class="value-secondary" id="r-kv-y">-</td>
+                  <td class="formula-cell" id="r-kv-formula">-</td>
                 </tr>
                 <tr>
                   <td>Pflegeversicherung <span class="pap-badge" data-pap="pv">PAP S.8</span></td>
                   <td class="value" id="r-pv">-</td>
-                  <td class="value-secondary" id="r-pv-y">-</td>
+                  <td class="formula-cell" id="r-pv-formula">-</td>
                 </tr>
 
                 <!-- Zusammenfassung -->
                 <tr class="summary">
                   <td>Gesamtabzüge</td>
                   <td class="value" id="r-total">-</td>
-                  <td class="value-secondary" id="r-total-y">-</td>
+                  <td class="formula-cell" id="r-total-formula">-</td>
                 </tr>
                 <tr class="netto">
                   <td>Netto-Auszahlung</td>
                   <td class="value" id="r-netto">-</td>
-                  <td class="value-secondary" id="r-netto-y">-</td>
+                  <td class="formula-cell" id="r-netto-formula">-</td>
                 </tr>
                 <tr>
                   <td>Belastungsquote</td>
@@ -1105,6 +1210,219 @@
           <div id="audit-list" style="font-size: 12px"></div>
         </div>
       </div>
+
+      <!-- TAB: DOKUMENTATION -->
+      <div id="tab-dokumentation" class="tab-content hidden">
+        <div class="panel" style="max-width: 900px; margin: 0 auto">
+          <h2>Testergebnisdokumentation für Henning:</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 22px">
+            Vollständige Entwicklungshistorie des LexLohnRechners · Lohnsteuerberechnung nach PAP 2025/2026/2027 ·
+            Erstellt von Marc Grethen · Mai 2026
+          </p>
+
+          <h3>Entwicklungszeitlinie</h3>
+
+          <div class="timeline" style="margin-top: 16px">
+
+            <div class="timeline-entry">
+              <div class="timeline-time">05.05.2026 &middot; 22:14 Uhr &middot; Commit <code style="font-size:10px">1728c0d</code></div>
+              <span class="timeline-phase">Initiale Analyse</span>
+              <div class="timeline-body">
+                <strong>Excel-Analyse und Entwicklungskonzept</strong>
+                <ul>
+                  <li>Vollständige Analyse der Excel-Datei mit VBA-Makros, Named Ranges und Berechnungslogik</li>
+                  <li>21 Eingabeparameter (E4–E35) und 10 Ausgabevariablen (E38–E47) dokumentiert</li>
+                  <li>VBA-Funktion <code>LohnSt25()</code> mit 17 Parametern vollständig dekodiert</li>
+                  <li>Entwicklungskonzept mit 8 Phasen erstellt</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">05.05.2026 &middot; 22:20 Uhr &middot; Commit <code style="font-size:10px">62b5f4d</code></div>
+              <span class="timeline-phase">Phase 1 – Grundstruktur</span>
+              <div class="timeline-body">
+                <strong>Projekt-Setup, Eingabeformular, Validierung</strong>
+                <ul>
+                  <li>TypeScript + Vite Projekt-Setup</li>
+                  <li>Vollständiges Eingabeformular (Bruttolohn, Steuerklassen I–VI, SV-Optionen)</li>
+                  <li>Eingabevalidierung mit Konflikterkennung</li>
+                  <li>Grundlegende Berechnungsstruktur</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">05.05.2026 &middot; 22:25 Uhr &middot; Commit <code style="font-size:10px">2a3f194</code></div>
+              <span class="timeline-phase">Phase 2 – Kern-Berechnung</span>
+              <div class="timeline-body">
+                <strong>TaxCalculator, SocialSecurityCalculator, AuditLogger</strong>
+                <ul>
+                  <li>§ 32a EStG Tarif: alle 5 Zonen (A–E), Progressionsformel</li>
+                  <li>Sozialversicherung: RV, ALV, KV (GKV + PKV), PV mit allen Modifikatoren</li>
+                  <li>Solidaritätszuschlag: Freigrenze + Milderungszone</li>
+                  <li>AuditLogger: vollständige Berechnungsnachverfolgung mit PAP-Referenzen</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">05.05.2026 &middot; 22:27 Uhr &middot; Commit <code style="font-size:10px">c72b8d4</code></div>
+              <span class="timeline-phase">Phase 3 – UI &amp; Dokumentation</span>
+              <div class="timeline-body">
+                <strong>Ergebnisanzeige, Audit-Trail, Benutzerhandbuch</strong>
+                <ul>
+                  <li>Detaillierte Ergebnistabelle (LSt, SolZ, KiSt, SV-Einzelpositionen, Netto)</li>
+                  <li>Audit-Trail mit Berechnungsschritt-Übersicht</li>
+                  <li>Benutzerhandbuch und Projektdokumentation erstellt</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">05.05.2026 &middot; 22:31 Uhr &middot; Commit <code style="font-size:10px">d0d1ab6</code></div>
+              <span class="timeline-phase">Phase 4 – Multi-Year Support</span>
+              <div class="timeline-body">
+                <strong>Versionierung &amp; Jahresvergleiche (2025 / 2026 / 2027)</strong>
+                <ul>
+                  <li>VersionManager: separate Parameter für jedes Steuerjahr</li>
+                  <li>Jahr-Wechsel im Topbar (Dropdown)</li>
+                  <li>Jahresvergleiche und Parameterunterschiede sichtbar</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 16:19 Uhr &middot; Commit <code style="font-size:10px">bdc23f2</code></div>
+              <span class="timeline-phase">Phase 5 – KI-Automation</span>
+              <div class="timeline-body">
+                <strong>Claude API Integration &amp; Parameter-Management</strong>
+                <ul>
+                  <li>PDFUploadManager: PAP-Dokumente hochladen und auslesen</li>
+                  <li>ClaudeParameterExtractor: automatische Parameterextraktion via Claude API</li>
+                  <li>PAP-Import Tab mit Regex-Fallback</li>
+                  <li>Vorbereitung für vollautomatische Jahresupdates</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 16:19 Uhr &middot; Commit <code style="font-size:10px">6ae51de</code></div>
+              <span class="timeline-phase">Phase 6 – Komplett-Refactoring</span>
+              <div class="timeline-body">
+                <strong>Neue zentrale LohnsteuerEngine nach PAP-Spezifikation</strong>
+                <ul>
+                  <li>Vollständige Neuentwicklung: <code>LohnsteuerEngine.ts</code> als Single-Source-of-Truth</li>
+                  <li>PAP-Tarif-Koeffizienten aus Stetigkeitsbedingungen hergeleitet und verifiziert (K=894)</li>
+                  <li>Alle 3 Steuerjahre (2025/2026/2027) exakt nach PAP implementiert</li>
+                  <li>Modularer Aufbau: <code>berechneLohnsteuer()</code>, <code>findeKonflikte()</code>, <code>formatEUR()</code></li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 20:43 Uhr &middot; Commit <code style="font-size:10px">a072248</code></div>
+              <span class="timeline-phase">Stage 1 – PAP-2025-Formel &amp; SONSTB</span>
+              <div class="timeline-body">
+                <strong>Erweiterte Berechnungen: vJBrutto, Sonstige Bezüge (§ 39b EStG)</strong>
+                <ul>
+                  <li>Korrekte PAP-Tarif-Koeffizienten für 2025/2026/2027 (K=894, node.js-verifiziert)</li>
+                  <li><code>vJBrutto</code>: Voraussichtliches Jahresbrutto als Basis für SONSTB-Berechnung</li>
+                  <li>Sonstige Bezüge (SONSTB): Vergleichsrechnung nach § 39b Abs. 3 EStG</li>
+                  <li>JRE4-Berechnung: Jahresbrutto inkl. LZZ-Hochrechnung</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 21:16 Uhr &middot; Commit <code style="font-size:10px">db4a453</code></div>
+              <span class="timeline-phase">Stage 2 – Altersentlastung &amp; PKV</span>
+              <div class="timeline-body">
+                <strong>Altersentlastungsbetrag, PKV-Vorsorgepauschale, Faktorverfahren STKL IV</strong>
+                <ul>
+                  <li>Altersentlastungsbetrag: § 24a EStG (ab 64 Jahren, prozentual + Höchstbetrag)</li>
+                  <li>PKV-Vorsorgepauschale (VKV): tatsächlicher Monatsbeitrag gemäß § 10 EStG</li>
+                  <li>Faktorverfahren STKL IV: § 39f EStG, F-Faktor 0,001–0,999</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 21:38 Uhr &middot; Commit <code style="font-size:10px">d1e959a</code></div>
+              <span class="timeline-phase">CSS Redesign</span>
+              <div class="timeline-body">
+                <strong>Modernes Layout mit Design-Token-System</strong>
+                <ul>
+                  <li>CSS-Token-System: <code>--primary</code>, <code>--surface-dim</code>, <code>--sh-xs/sm/md/lg</code>, <code>--r-xs/sm/md/lg</code></li>
+                  <li>Einheitliche Ergebnistabelle mit <code>tr.group-header</code> Abschnittstrennern</li>
+                  <li>Sticky Topbar, Pill-Badges für PAP-Referenzen, Modal mit Backdrop-Blur</li>
+                  <li>system-ui Schriftfamilie, responsive Grid-Layout</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; 21:55 Uhr &middot; Commit <code style="font-size:10px">fb1bdda</code></div>
+              <span class="timeline-phase">Stage 3 – Minijob, Midijob, Fünftelregelung</span>
+              <div class="timeline-body">
+                <strong>Sonderbeschäftigungen &amp; außerordentliche Einkünfte</strong>
+                <ul>
+                  <li>Minijob (§ 40a EStG / § 8 SGB IV): Grenze 556 EUR/Monat, AN-Abgaben = 0, AG-Pauschallasten</li>
+                  <li>Midijob / Übergangsbereich (§ 20 SGB IV): BPE-Formel F=0,6846, G1=556, G2=2.000</li>
+                  <li>Fünftelregelung § 34 EStG: Abfindungen (SONSTENT) und mehrjährige Bezüge</li>
+                  <li>Grenzsteuersatz (Marginalbelastung, analog Excel E46/AMLohnAbgabenLast)</li>
+                  <li>Excel-Mapping dokumentiert: 97 % Deckungsgrad (EXCEL_BERECHNUNG_MAPPING.md)</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-entry">
+              <div class="timeline-time">06.05.2026 &middot; Diese Version</div>
+              <span class="timeline-phase">Stage 4 – Dokumentation &amp; Deployment</span>
+              <div class="timeline-body">
+                <strong>Formelansicht, Passwortschutz, GitHub Pages, Dokumentation</strong>
+                <ul>
+                  <li>Formel-Spalte in Ergebnistabelle: zeigt genaue Berechnungsherleitung je Position</li>
+                  <li>Passwortschutz der Anwendung (sessionStorage-basiert)</li>
+                  <li>Diese Dokumentationsseite mit vollständiger Entwicklungshistorie</li>
+                  <li>GitHub Pages Deployment via GitHub Actions (automatisch bei Push)</li>
+                  <li>Alle .md-Anlagen verlinkt (öffnen in neuem Fenster)</li>
+                </ul>
+              </div>
+            </div>
+
+          </div>
+
+          <h3 style="margin-top: 28px">Anlagen – öffnen in neuem Fenster</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0 12px">
+            Alle Dokumentationsdateien des Projekts. Klick öffnet den Inhalt als Textdatei in einem neuen Tab.
+          </p>
+          <div class="doc-grid">
+            <a class="doc-link" data-md="analyse">&#128196; ANALYSE_Lohnsteuer_Excel.md</a>
+            <a class="doc-link" data-md="mapping">&#128196; EXCEL_BERECHNUNG_MAPPING.md</a>
+            <a class="doc-link" data-md="technisch">&#128196; TECHNISCHE_DETAILS_Anhang.md</a>
+            <a class="doc-link" data-md="konzept">&#128196; ENTWICKLUNGSKONZEPT_Prototype_v1.md</a>
+            <a class="doc-link" data-md="uebersicht">&#128196; PROJEKT_UEBERSICHT.md</a>
+            <a class="doc-link" data-md="handbuch">&#128196; BENUTZERHANDBUCH.md</a>
+            <a class="doc-link" data-md="readme">&#128196; README.md</a>
+            <a class="doc-link" data-md="readme-analyse">&#128196; README_ANALYSE.md</a>
+            <a class="doc-link" data-md="index">&#128196; INDEX.md</a>
+            <a class="doc-link" data-md="quickstart">&#128196; QUICK_START.md</a>
+            <a class="doc-link" data-md="roadmap">&#128196; IMPROVEMENTS_ROADMAP.md</a>
+            <a class="doc-link" data-md="phase5-summary">&#128196; PHASE_5_SUMMARY.md</a>
+            <a class="doc-link" data-md="phase5-guide">&#128196; PHASE_5_INTEGRATION_GUIDE.md</a>
+            <a class="doc-link" data-md="phase5-setup">&#128196; PHASE_5_SETUP.md</a>
+            <a class="doc-link" data-md="phase5-complete">&#128196; PHASE_5_COMPLETE.md</a>
+            <a class="doc-link" data-md="phase5-ref">&#128196; PHASE_5_QUICK_REFERENCE.md</a>
+          </div>
+
+          <div class="info-box" style="margin-top: 24px">
+            <strong>Technische Basis:</strong> TypeScript · Vite · PAP 2025/2026/2027 (BMF) ·
+            § 32a EStG · § 39b EStG · § 34 EStG · SGB IV/V/VI/XI ·
+            <strong>Abdeckung:</strong> 97 % der Excel-Berechnungen (VBEZ-Versorgungsbezüge: Seltenfall, nicht implementiert)
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- MODAL -->
@@ -1122,6 +1440,48 @@
       LexLohnRechner v2.0 · Lohnsteuer-Berechnung nach PAP 2026 ·
       Gemäß § 39b Abs. 6 EStG · Keine Gewähr · Verwenden Sie für offizielle Berechnungen die zugelassenen Programme
     </footer>
+
+    <!-- PASSWORD OVERLAY -->
+    <div id="password-overlay">
+      <div class="password-box">
+        <h2>LexLohnRechner 2026</h2>
+        <p class="pw-sub">Lohnsteuerberechnung nach PAP · Marc Grethen</p>
+        <p class="pw-label">Passwort eingeben:</p>
+        <input type="password" id="password-input" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" autocomplete="current-password" />
+        <button onclick="checkPassword()">Anmelden</button>
+        <p class="password-error" id="password-error">Falsches Passwort. Bitte erneut versuchen.</p>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        if (sessionStorage.getItem('lexlohn_auth') === 'ok') {
+          document.getElementById('password-overlay').style.display = 'none';
+        }
+      })();
+
+      function checkPassword() {
+        var val = document.getElementById('password-input').value;
+        if (val === 'Henning2026') {
+          sessionStorage.setItem('lexlohn_auth', 'ok');
+          document.getElementById('password-overlay').style.display = 'none';
+        } else {
+          var err = document.getElementById('password-error');
+          err.style.display = 'block';
+          document.getElementById('password-input').value = '';
+          document.getElementById('password-input').focus();
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var inp = document.getElementById('password-input');
+        if (inp) {
+          inp.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') checkPassword();
+          });
+        }
+      });
+    </script>
 
     <script type="module" src="./app.ts"></script>
   </body>

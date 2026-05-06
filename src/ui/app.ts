@@ -1,17 +1,10 @@
-/**
- * LexLohnRechner - Hauptanwendung
- * Verwendet die neue, korrekte LohnsteuerEngine
- */
-
 import {
   berechneLohnsteuer,
   findeKonflikte,
   formatEUR,
   formatProzent,
   aufJahr,
-  vonJahr,
   lzzName,
-  naechsterLzz,
   PAP_2025,
   PAP_2026,
   PAP_2027,
@@ -23,6 +16,23 @@ import {
   type Steuerklasse,
   type Konflikt,
 } from '../modules/LohnsteuerEngine'
+
+import analyseMd from '../../ANALYSE_Lohnsteuer_Excel.md?raw'
+import mappingMd from '../../EXCEL_BERECHNUNG_MAPPING.md?raw'
+import technischMd from '../../TECHNISCHE_DETAILS_Anhang.md?raw'
+import konzeptMd from '../../ENTWICKLUNGSKONZEPT_Prototype_v1.md?raw'
+import uebersichtMd from '../../PROJEKT_UEBERSICHT.md?raw'
+import handbuchMd from '../../BENUTZERHANDBUCH.md?raw'
+import readmeMd from '../../README.md?raw'
+import readmeAnalyseMd from '../../README_ANALYSE.md?raw'
+import indexMd from '../../INDEX.md?raw'
+import quickstartMd from '../../QUICK_START.md?raw'
+import roadmapMd from '../../IMPROVEMENTS_ROADMAP.md?raw'
+import phase5SummaryMd from '../../PHASE_5_SUMMARY.md?raw'
+import phase5GuideMd from '../../PHASE_5_INTEGRATION_GUIDE.md?raw'
+import phase5SetupMd from '../../PHASE_5_SETUP.md?raw'
+import phase5CompleteMd from '../../PHASE_5_COMPLETE.md?raw'
+import phase5RefMd from '../../PHASE_5_QUICK_REFERENCE.md?raw'
 
 // ============================================================================
 // STATE
@@ -379,73 +389,96 @@ function berechne(): void {
   }
 }
 
+function berechneFormelTexte(
+  erg: LohnsteuerErgebnis,
+  eingabe: LohnsteuerEingabe,
+): Record<string, string> {
+  const lzz = eingabe.lohnZZ
+  const brutto = erg.bruttolohn
+  const lst = erg.lohnsteuer
+  const params = currentParams
+
+  const lzzFaktorMap: Record<number, number> = { 1: 1, 2: 12, 3: 52, 4: 360 }
+  const f = lzzFaktorMap[lzz] ?? 12
+  const bruttoJahr = brutto * f
+
+  const bbgRV = (eingabe.westOst === 'ost' ? params.rvBbgOst : params.rvBbgWest) / f
+  const bbgAlv = params.alvBbg / f
+  const bbgKV = params.kvBbg / f
+  const lstJahr = aufJahr(lst, lzz)
+
+  const effLstRate = brutto > 0 ? (lst / brutto) * 100 : 0
+  const kvZusatz = eingabe.kvZusatzbeitragProzent ?? 0
+  const rvSatzAN = params.rvSatzGesamt / 2
+  const alvSatzAN = params.alvSatzGesamt / 2
+  const kvSatzAN = params.kvBasisSatzGesamt / 2 + kvZusatz / 2
+
+  const fmt = formatEUR
+
+  return {
+    brutto: f !== 1
+      ? `${fmt(brutto)} × ${f} = ${fmt(bruttoJahr)} EUR/J`
+      : `${fmt(brutto)} EUR (Jahresbetrag direkt eingegeben)`,
+    lst: `§ 32a EStG · STKL ${eingabe.steuerklasse} · Eff. ${formatProzent(effLstRate)}`,
+    solz: `${fmt(lstJahr)} EUR/J × 5,5 % · Freigrenze/J: ${fmt(params.solzFreigrenze)} EUR`,
+    kirch: `${fmt(lstJahr)} EUR/J × ${eingabe.kirchensteuerSatz ?? 9} % · § 51a EStG`,
+    rv: `min(${fmt(brutto)}; ${fmt(bbgRV)}) × ${rvSatzAN.toFixed(1)} % AN-Anteil`,
+    alv: `min(${fmt(brutto)}; ${fmt(bbgAlv)}) × ${alvSatzAN.toFixed(1)} % AN-Anteil`,
+    kv: `min(${fmt(brutto)}; ${fmt(bbgKV)}) × ${kvSatzAN.toFixed(2)} % AN-Anteil`,
+    pv: `min(${fmt(brutto)}; ${fmt(bbgKV)}) × PV-Satz · § 55 SGB XI`,
+    total: `Σ LSt + SolZ${eingabe.kirchensteuer ? ' + KiSt' : ''} + RV + ALV + KV + PV`,
+    netto: `${fmt(brutto)} − ${fmt(erg.gesamtAbzuege)} = ${fmt(erg.netto)} EUR netto`,
+  }
+}
+
 function zeigeErgebnis(erg: LohnsteuerErgebnis, eingabe: LohnsteuerEingabe, auditId: string): void {
   const lzz = eingabe.lohnZZ
 
   // Header
   $('result-period').textContent = lzzName(lzz)
 
-  // Nächst höherer Zeitraum für Vergleichsspalte
-  const nextLzz = naechsterLzz(lzz)
-  if (nextLzz) {
-    $('header-next').textContent = lzzName(nextLzz).charAt(0).toUpperCase() + lzzName(nextLzz).slice(1)
-  } else {
-    $('header-next').textContent = 'Pro Tag'
-  }
-
-  // Hilfsfunktion für Konvertierung
-  const altWert = (wert: number): string => {
-    if (nextLzz) {
-      // Konvertiere in nächst höheren Zeitraum
-      const jahr = aufJahr(wert, lzz)
-      const next = vonJahr(jahr, nextLzz)
-      return formatEUR(next) + ' EUR'
-    } else {
-      // Bereits jährlich → zeige täglichen Wert
-      const taeglich = vonJahr(wert, 4)
-      return formatEUR(taeglich) + ' EUR'
-    }
-  }
+  // Formeln berechnen
+  const formeln = berechneFormelTexte(erg, eingabe)
 
   // Brutto
   $('r-brutto').textContent = formatEUR(erg.bruttolohn) + ' EUR'
-  $('r-brutto-y').textContent = altWert(erg.bruttolohn)
+  $('r-brutto-formula').textContent = formeln.brutto
 
   // Steuern
   $('r-lst').textContent = formatEUR(erg.lohnsteuer) + ' EUR'
-  $('r-lst-y').textContent = altWert(erg.lohnsteuer)
+  $('r-lst-formula').textContent = formeln.lst
 
   $('r-solz').textContent = formatEUR(erg.solidaritaetszuschlag) + ' EUR'
-  $('r-solz-y').textContent = altWert(erg.solidaritaetszuschlag)
+  $('r-solz-formula').textContent = formeln.solz
 
   // Kirchensteuer (nur wenn aktiv)
   if (eingabe.kirchensteuer) {
     $('row-kirch').style.display = ''
     $('r-kirch').textContent = formatEUR(erg.kirchensteuer) + ' EUR'
-    $('r-kirch-y').textContent = altWert(erg.kirchensteuer)
+    $('r-kirch-formula').textContent = formeln.kirch
   } else {
     $('row-kirch').style.display = 'none'
   }
 
   // Sozialversicherung
   $('r-rv').textContent = formatEUR(erg.rentenversicherung) + ' EUR'
-  $('r-rv-y').textContent = altWert(erg.rentenversicherung)
+  $('r-rv-formula').textContent = formeln.rv
 
   $('r-alv').textContent = formatEUR(erg.arbeitslosenversicherung) + ' EUR'
-  $('r-alv-y').textContent = altWert(erg.arbeitslosenversicherung)
+  $('r-alv-formula').textContent = formeln.alv
 
   $('r-kv').textContent = formatEUR(erg.krankenversicherung) + ' EUR'
-  $('r-kv-y').textContent = altWert(erg.krankenversicherung)
+  $('r-kv-formula').textContent = formeln.kv
 
   $('r-pv').textContent = formatEUR(erg.pflegeversicherung) + ' EUR'
-  $('r-pv-y').textContent = altWert(erg.pflegeversicherung)
+  $('r-pv-formula').textContent = formeln.pv
 
   // Summen
   $('r-total').textContent = formatEUR(erg.gesamtAbzuege) + ' EUR'
-  $('r-total-y').textContent = altWert(erg.gesamtAbzuege)
+  $('r-total-formula').textContent = formeln.total
 
   $('r-netto').textContent = formatEUR(erg.netto) + ' EUR'
-  $('r-netto-y').textContent = altWert(erg.netto)
+  $('r-netto-formula').textContent = formeln.netto
 
   $('r-quote').textContent = formatProzent(erg.belastungsquote)
 
@@ -825,6 +858,52 @@ function setupPAPImport(): void {
 }
 
 // ============================================================================
+// DOKUMENTATION – MD-ANLAGEN
+// ============================================================================
+
+const MD_MAP: Record<string, string> = {
+  analyse: analyseMd,
+  mapping: mappingMd,
+  technisch: technischMd,
+  konzept: konzeptMd,
+  uebersicht: uebersichtMd,
+  handbuch: handbuchMd,
+  readme: readmeMd,
+  'readme-analyse': readmeAnalyseMd,
+  index: indexMd,
+  quickstart: quickstartMd,
+  roadmap: roadmapMd,
+  'phase5-summary': phase5SummaryMd,
+  'phase5-guide': phase5GuideMd,
+  'phase5-setup': phase5SetupMd,
+  'phase5-complete': phase5CompleteMd,
+  'phase5-ref': phase5RefMd,
+}
+
+function oeffneDokument(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/plain; charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+  if (!win) {
+    // Fallback: show in modal
+    showModal(filename, `<pre style="white-space:pre-wrap;font-size:12px;font-family:monospace">${content.replace(/</g, '&lt;')}</pre>`)
+  }
+}
+
+function setupDokumentationLinks(): void {
+  document.querySelectorAll('a[data-md]').forEach(el => {
+    const key = (el as HTMLElement).dataset.md ?? ''
+    const content = MD_MAP[key]
+    if (content) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault()
+        oeffneDokument(content, key + '.md')
+      })
+    }
+  })
+}
+
+// ============================================================================
 // TAB-NAVIGATION
 // ============================================================================
 
@@ -930,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners()
   updateDynamicFields()
   setupPAPImport()
+  setupDokumentationLinks()
   berechne()
   console.log('✅ LexLohnRechner v2.0 geladen')
 })
@@ -939,6 +1019,7 @@ if (document.readyState !== 'loading') {
   setupTabs()
   setupEventListeners()
   setupPAPImport()
+  setupDokumentationLinks()
   berechne()
   console.log('✅ LexLohnRechner v2.0 geladen (sofort)')
 }

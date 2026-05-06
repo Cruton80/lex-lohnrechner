@@ -2,14 +2,16 @@ import { defineConfig } from 'vite'
 import path from 'path'
 
 export default defineConfig({
-  root: '.',
+  root: 'src/ui',
+  base: './',
   server: {
     port: 3000,
-    open: '/src/ui/index.html',
+    open: '/',
   },
   build: {
     target: 'ES2020',
-    outDir: 'dist',
+    outDir: path.resolve(__dirname, 'dist'),
+    emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
       input: path.resolve(__dirname, 'src/ui/index.html'),
