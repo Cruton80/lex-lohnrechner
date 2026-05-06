@@ -45,5 +45,4 @@ Thumbs.db
 .vscode/settings.json
 
 # Build artifacts
-tsconfig.app.json
 vitest.config.ts
