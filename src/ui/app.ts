@@ -1,552 +1,689 @@
 /**
- * Hauptanwendung für Lohnsteuer-Webtool
- * Phase 1: Eingabeform mit Validierung
+ * LexLohnRechner - Hauptanwendung
+ * Verwendet die neue, korrekte LohnsteuerEngine
  */
 
-import { InputValidator } from '../modules/InputValidator.js'
-import { ReferenceRegistry } from '../modules/ReferenceRegistry.js'
-import { TaxCalculator } from '../modules/TaxCalculator.js'
-import { SocialSecurityCalculator } from '../modules/SocialSecurityCalculator.js'
-import { AuditLogger } from '../modules/AuditLogger.js'
-import { ResultsFormatter } from '../modules/ResultsFormatter.js'
-import { VersionManager } from '../modules/VersionManager.js'
-import type { LohnsteuerInputs, ValidationError, ParameterSet } from '../types/index.js'
-import parameters2025 from '../data/parameters-2025.json'
-import parameters2026 from '../data/parameters-2026.json'
-import parameters2027 from '../data/parameters-2027.json'
+import {
+  berechneLohnsteuer,
+  findeKonflikte,
+  formatEUR,
+  formatProzent,
+  aufJahr,
+  vonJahr,
+  lzzName,
+  naechsterLzz,
+  PAP_2025,
+  PAP_2026,
+  PAP_2027,
+  type LohnsteuerEingabe,
+  type LohnsteuerErgebnis,
+  type ParameterJahr,
+  type LohnZZ,
+  type Steuerklasse,
+  type Konflikt,
+} from '../modules/LohnsteuerEngine'
 
 // ============================================================================
-// INITIALISIERUNG
+// STATE
 // ============================================================================
 
-const validator = new InputValidator(2026)
-const references = new ReferenceRegistry()
+const PARAMETER: Record<number, ParameterJahr> = {
+  2025: PAP_2025,
+  2026: PAP_2026,
+  2027: PAP_2027,
+}
 
-// VersionManager für mehrjähriges Support
-const versionManager = new VersionManager()
-versionManager.registerVersion(parameters2025 as ParameterSet)
-versionManager.registerVersion(parameters2026 as ParameterSet)
-versionManager.registerVersion(parameters2027 as ParameterSet)
+let currentYear: number = 2026
+let currentParams: ParameterJahr = PAP_2026
+let lastResult: LohnsteuerErgebnis | null = null
+const auditHistory: Array<{ id: string; timestamp: Date; eingabe: LohnsteuerEingabe; ergebnis: LohnsteuerErgebnis }> = []
 
-let currentYear = 2026
-let currentParameters = parameters2026 as ParameterSet
-let taxCalculator = new TaxCalculator(currentParameters)
-let socialCalculator = new SocialSecurityCalculator(currentParameters)
-const auditLogger = new AuditLogger()
+// ============================================================================
+// PAP-INFO (für Modal)
+// ============================================================================
 
-// DOM Elements
-const form = document.getElementById('taxForm') as HTMLFormElement
-const calculateBtn = document.getElementById('calculateBtn') as HTMLButtonElement
-const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement
-const resultsDiv = document.getElementById('results') as HTMLDivElement
-const validationDiv = document.getElementById('validationErrors') as HTMLDivElement
-const loadingSpinner = document.getElementById('loadingSpinner') as HTMLDivElement
+const PAP_INFO: Record<string, { titel: string; paragraf: string; beschreibung: string; beispiel?: string }> = {
+  lst: {
+    titel: 'Lohnsteuer (PAP S. 12-13)',
+    paragraf: '§ 32a EStG - Einkommensteuertarif',
+    beschreibung: `Die Lohnsteuer wird nach dem progressiven Tarif § 32a EStG berechnet.
 
-// Form Fields
-const fields = {
-  lohnZZ: document.getElementById('lohnZZ') as HTMLSelectElement,
-  stkl: document.getElementById('stkl') as HTMLSelectElement,
-  bruttolohn: document.getElementById('bruttolohn') as HTMLInputElement,
-  freibetrag: document.getElementById('freibetrag') as HTMLInputElement,
-  rvStatus: document.getElementById('rvStatus') as HTMLSelectElement,
-  kvStatus: document.getElementById('kvStatus') as HTMLSelectElement,
-  kvZusatzSatz: document.getElementById('kvZusatzSatz') as HTMLInputElement,
-  pvStatus: document.getElementById('pvStatus') as HTMLSelectElement,
-  pvSachsen: document.getElementById('pvSachsen') as HTMLSelectElement,
-  kinderfreibetraege: document.getElementById('kinderfreibetraege') as HTMLInputElement,
-  geburtsjahr: document.getElementById('geburtsjahr') as HTMLInputElement,
-  westOst: document.getElementById('westOst') as HTMLSelectElement,
+Der Tarif hat 4 Zonen:
+• Zone A (0 - 11.600 EUR): Befreit
+• Zone B (11.601 - 17.005 EUR): Eingangstarif 14%
+• Zone C (17.006 - 66.760 EUR): Progressiv 24% - 42%
+• Zone D (66.761 - 277.825 EUR): 42%
+• Zone E (> 277.825 EUR): 45%
+
+Die Steuerklasse modifiziert die Berechnung:
+• STKL III: Splittingtarif (verheiratet)
+• STKL II: + 4.260 EUR Alleinerziehenden-Entlastung
+• STKL VI: Kein Grundfreibetrag (Zweitjob)`,
+  },
+  solz: {
+    titel: 'Solidaritätszuschlag (PAP S. 16)',
+    paragraf: '§ 5 SolzG',
+    beschreibung: `5,5% auf die Lohnsteuer, aber nur wenn die Lohnsteuer die Freigrenze überschreitet.
+
+Freigrenze 2026: 20.350 EUR Jahres-LSt
+(in STKL III: doppelte Freigrenze 40.700 EUR)
+
+Milderungszone:
+Statt voller 5,5% gilt 11,9% des Differenzbetrags zwischen LSt und Freigrenze - der niedrigere Wert wird angewandt.`,
+    beispiel: 'LSt = 22.000 EUR → SolZ = min(0,055 × 22.000; 0,119 × (22.000 - 20.350)) = 196,35 EUR',
+  },
+  kirch: {
+    titel: 'Kirchensteuer (PAP S. 17)',
+    paragraf: '§ 51a EStG',
+    beschreibung: `8% (Bayern, Baden-Württemberg) oder 9% (übrige Bundesländer) auf die Lohnsteuer.
+
+Kinderfreibeträge werden bei der Berechnungsgrundlage berücksichtigt (fiktive LSt mit Kinderfreibetrag).
+
+Wird nur erhoben bei Religionszugehörigkeit zu einer der berechtigten Religionsgemeinschaften.`,
+  },
+  rv: {
+    titel: 'Rentenversicherung (PAP S. 7)',
+    paragraf: '§ 168 SGB VI',
+    beschreibung: `Beitragssatz 2026: 18,6% gesamt
+• Arbeitnehmer: 9,3%
+• Arbeitgeber: 9,3%
+
+Beitragsbemessungsgrenze 2026:
+• West: 101.400 EUR/Jahr (8.450 EUR/Monat)
+• Ost: 107.100 EUR/Jahr (8.925 EUR/Monat)
+
+Berechnung: min(Brutto, BBG) × 9,3%`,
+  },
+  alv: {
+    titel: 'Arbeitslosenversicherung (PAP S. 7)',
+    paragraf: '§ 341 SGB III',
+    beschreibung: `Beitragssatz 2026: 2,6% gesamt
+• Arbeitnehmer: 1,3%
+• Arbeitgeber: 1,3%
+
+Beitragsbemessungsgrenze 2026: 101.400 EUR/Jahr (wie RV West)
+
+Berechnung: min(Brutto, BBG) × 1,3%`,
+  },
+  kv: {
+    titel: 'Krankenversicherung (PAP S. 8)',
+    paragraf: '§ 242 SGB V',
+    beschreibung: `Beitragssatz 2026:
+• Allgemeiner Beitrag: 14,0% (7,0% AN, 7,0% AG)
+• Zusatzbeitrag: kassenindividuell (durchschn. 2,5%, hälftig getragen)
+
+Beitragsbemessungsgrenze 2026: 69.750 EUR/Jahr (5.812,50 EUR/Monat)
+
+Berechnung AN: min(Brutto, BBG) × (7,0% + Zusatzbeitrag/2)`,
+  },
+  pv: {
+    titel: 'Pflegeversicherung (PAP S. 8)',
+    paragraf: '§ 55 SGB XI',
+    beschreibung: `Beitragssatz 2026: 3,6% gesamt
+• Arbeitnehmer: 1,8%
+• Arbeitgeber: 1,8%
+
+Zuschläge/Abschläge AN:
+• Kinderlos (ab 23 J.): +0,6%
+• Pro Kind ab 2. Kind: -0,25% (max. -1,00%)
+• Sachsen: +0,5% (statt Buß- und Bettag)
+
+BBG = wie KV (69.750 EUR/Jahr)`,
+  },
 }
 
 // ============================================================================
-// EVENT LISTENERS
+// DOM
 // ============================================================================
 
-calculateBtn.addEventListener('click', handleCalculate)
-resetBtn.addEventListener('click', handleReset)
+function $(id: string): HTMLElement {
+  return document.getElementById(id)!
+}
 
-// Year selection
-const yearSelect = document.getElementById('yearSelect') as HTMLSelectElement
-yearSelect.addEventListener('change', (e) => {
-  const year = parseInt((e.target as HTMLSelectElement).value)
-  switchYear(year)
-})
+function $i(id: string): HTMLInputElement {
+  return document.getElementById(id) as HTMLInputElement
+}
 
-// Comparison button
-const compareBtn = document.getElementById('compareBtn') as HTMLButtonElement
-compareBtn.addEventListener('click', showComparison)
-
-// Back button
-const backBtn = document.getElementById('backToCalcBtn') as HTMLButtonElement
-backBtn.addEventListener('click', hideComparison)
-
-// Real-time validation
-Object.values(fields).forEach((field) => {
-  field.addEventListener('change', () => validateField(field))
-  field.addEventListener('blur', () => validateField(field))
-})
+function $s(id: string): HTMLSelectElement {
+  return document.getElementById(id) as HTMLSelectElement
+}
 
 // ============================================================================
-// FORM HANDLING
+// EINGABE LESEN
 // ============================================================================
 
-function handleCalculate(): void {
-  const inputs = getFormInputs()
-  const validation = validator.validateAllInputs(inputs)
+function getEingabe(): LohnsteuerEingabe {
+  const kvGesetzlich = $s('kvGesetzlich').value === '1'
+  const kirchSatz = parseInt($s('kirchensteuer').value || '0')
 
-  if (!validation.valid) {
-    displayValidationErrors(validation.errors)
-    resultsDiv.classList.remove('show')
+  return {
+    bruttolohn: parseFloat($i('bruttolohn').value) || 0,
+    lohnZZ: parseInt($s('lohnZZ').value) as LohnZZ,
+    steuerklasse: parseInt($s('stkl').value) as Steuerklasse,
+    freibetrag: parseFloat($i('freibetrag').value) || 0,
+    kinderfreibetraege: parseFloat($i('kinder').value) || 0,
+    geburtsjahr: $i('geburtsjahr').value ? parseInt($i('geburtsjahr').value) : undefined,
+    rvVersichert: $s('rvVersichert').value === '1',
+    kvGesetzlich,
+    kvZusatzbeitragProzent: parseFloat($i('kvZusatz').value) || 0,
+    pvKinderlos: $s('pvKinderlos').value === '1',
+    pvSachsenZuschlag: $s('pvSachsen').value === '1',
+    westOst: $s('westOst').value as 'west' | 'ost',
+    kirchensteuer: kirchSatz > 0,
+    kirchensteuerSatz: kirchSatz > 0 ? kirchSatz : undefined,
+  }
+}
+
+// ============================================================================
+// KONFLIKT-ANZEIGE
+// ============================================================================
+
+function zeigeKonflikte(konflikte: Konflikt[]): void {
+  // Reset
+  document.querySelectorAll('.form-row').forEach(row => {
+    row.classList.remove('error', 'warning', 'info')
+    const c = row.querySelector('.conflict')
+    if (c) c.remove()
+  })
+
+  for (const konflikt of konflikte) {
+    const row = document.querySelector(`.form-row[data-field="${konflikt.feld}"]`) as HTMLElement
+    if (row) {
+      const klasse = konflikt.schwere === 'fehler' ? 'error' : konflikt.schwere === 'warnung' ? 'warning' : 'info'
+      row.classList.add(klasse)
+      const div = document.createElement('div')
+      div.className = `conflict ${konflikt.schwere}`
+      div.innerHTML = `<strong>${konflikt.meldung}</strong>${konflikt.hinweis ? '<br>' + konflikt.hinweis : ''}`
+      row.appendChild(div)
+    }
+  }
+}
+
+// ============================================================================
+// BERECHNUNG & ANZEIGE
+// ============================================================================
+
+function berechne(): void {
+  try {
+    const eingabe = getEingabe()
+    const konflikte = findeKonflikte(eingabe)
+
+    zeigeKonflikte(konflikte)
+
+    // Bei Fehlern nicht berechnen
+    if (konflikte.some(k => k.schwere === 'fehler')) {
+      return
+    }
+
+    const ergebnis = berechneLohnsteuer(eingabe, currentParams)
+    lastResult = ergebnis
+
+    // Audit-Eintrag
+    const auditId = `AUDIT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    auditHistory.push({
+      id: auditId,
+      timestamp: new Date(),
+      eingabe,
+      ergebnis,
+    })
+
+    zeigeErgebnis(ergebnis, eingabe, auditId)
+  } catch (error) {
+    console.error('Berechnungsfehler:', error)
+  }
+}
+
+function zeigeErgebnis(erg: LohnsteuerErgebnis, eingabe: LohnsteuerEingabe, auditId: string): void {
+  const lzz = eingabe.lohnZZ
+
+  // Header
+  $('result-period').textContent = lzzName(lzz)
+
+  // Nächst höherer Zeitraum für Vergleichsspalte
+  const nextLzz = naechsterLzz(lzz)
+  if (nextLzz) {
+    $('header-next').textContent = lzzName(nextLzz).charAt(0).toUpperCase() + lzzName(nextLzz).slice(1)
+  } else {
+    $('header-next').textContent = 'Pro Tag'
+  }
+
+  // Hilfsfunktion für Konvertierung
+  const altWert = (wert: number): string => {
+    if (nextLzz) {
+      // Konvertiere in nächst höheren Zeitraum
+      const jahr = aufJahr(wert, lzz)
+      const next = vonJahr(jahr, nextLzz)
+      return formatEUR(next) + ' EUR'
+    } else {
+      // Bereits jährlich → zeige täglichen Wert
+      const taeglich = vonJahr(wert, 4)
+      return formatEUR(taeglich) + ' EUR'
+    }
+  }
+
+  // Brutto
+  $('r-brutto').textContent = formatEUR(erg.bruttolohn) + ' EUR'
+  $('r-brutto-y').textContent = altWert(erg.bruttolohn)
+
+  // Steuern
+  $('r-lst').textContent = formatEUR(erg.lohnsteuer) + ' EUR'
+  $('r-lst-y').textContent = altWert(erg.lohnsteuer)
+
+  $('r-solz').textContent = formatEUR(erg.solidaritaetszuschlag) + ' EUR'
+  $('r-solz-y').textContent = altWert(erg.solidaritaetszuschlag)
+
+  // Kirchensteuer (nur wenn aktiv)
+  if (eingabe.kirchensteuer) {
+    $('row-kirch').style.display = ''
+    $('r-kirch').textContent = formatEUR(erg.kirchensteuer) + ' EUR'
+    $('r-kirch-y').textContent = altWert(erg.kirchensteuer)
+  } else {
+    $('row-kirch').style.display = 'none'
+  }
+
+  // Sozialversicherung
+  $('r-rv').textContent = formatEUR(erg.rentenversicherung) + ' EUR'
+  $('r-rv-y').textContent = altWert(erg.rentenversicherung)
+
+  $('r-alv').textContent = formatEUR(erg.arbeitslosenversicherung) + ' EUR'
+  $('r-alv-y').textContent = altWert(erg.arbeitslosenversicherung)
+
+  $('r-kv').textContent = formatEUR(erg.krankenversicherung) + ' EUR'
+  $('r-kv-y').textContent = altWert(erg.krankenversicherung)
+
+  $('r-pv').textContent = formatEUR(erg.pflegeversicherung) + ' EUR'
+  $('r-pv-y').textContent = altWert(erg.pflegeversicherung)
+
+  // Summen
+  $('r-total').textContent = formatEUR(erg.gesamtAbzuege) + ' EUR'
+  $('r-total-y').textContent = altWert(erg.gesamtAbzuege)
+
+  $('r-netto').textContent = formatEUR(erg.netto) + ' EUR'
+  $('r-netto-y').textContent = altWert(erg.netto)
+
+  $('r-quote').textContent = formatProzent(erg.belastungsquote)
+
+  // Audit-ID
+  $('audit-id').textContent = auditId
+
+  console.log('✅ Berechnung:', {
+    brutto: erg.bruttolohn,
+    lst: erg.lohnsteuer,
+    netto: erg.netto,
+    quote: erg.belastungsquote.toFixed(2) + '%',
+  })
+}
+
+// ============================================================================
+// MODAL
+// ============================================================================
+
+function showModal(title: string, body: string): void {
+  $('modal-title').textContent = title
+  $('modal-body').innerHTML = body
+  $('modal').classList.add('show')
+}
+
+function closeModal(): void {
+  $('modal').classList.remove('show')
+}
+
+(window as any).closeModal = closeModal
+
+function showPAPInfo(papKey: string): void {
+  const info = PAP_INFO[papKey]
+  if (!info) return
+
+  let html = `
+    <div style="margin-bottom: 12px">
+      <strong>Rechtsgrundlage:</strong> ${info.paragraf}
+    </div>
+    <div style="white-space: pre-wrap; line-height: 1.7">${info.beschreibung}</div>
+  `
+
+  if (info.beispiel) {
+    html += `
+      <div class="info-box" style="margin-top: 12px">
+        <strong>Beispiel:</strong><br>${info.beispiel}
+      </div>
+    `
+  }
+
+  showModal(info.titel, html)
+}
+
+// Audit-Trail Modal
+function showAuditTrail(): void {
+  if (!lastResult) {
+    showModal('Audit-Trail', '<p>Noch keine Berechnung durchgeführt.</p>')
     return
   }
 
-  validationDiv.classList.remove('show')
-  loadingSpinner.style.display = 'block'
+  let html = `
+    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px">
+      Vollständige Berechnungsschritte für Nachvollziehbarkeit
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Schritt</th>
+          <th>Eingabe</th>
+          <th>Ergebnis</th>
+          <th>PAP-Ref.</th>
+        </tr>
+      </thead>
+      <tbody>
+  `
 
-  // Simulate calculation delay (Phase 2 wird echte Berechnung sein)
-  setTimeout(() => {
-    performCalculation(inputs)
-    loadingSpinner.style.display = 'none'
-  }, 500)
+  for (const s of lastResult.schritte) {
+    html += `
+      <tr>
+        <td>${s.nr}</td>
+        <td>
+          <strong>${s.titel}</strong><br>
+          <span style="font-size: 11px; color: var(--text-muted)">${s.beschreibung}</span>
+          ${s.formel ? `<br><code>${s.formel}</code>` : ''}
+        </td>
+        <td style="font-size: 11px">${s.eingabe}</td>
+        <td style="font-size: 11px"><strong>${s.ergebnis}</strong></td>
+        <td style="font-size: 10px"><code>${s.papReferenz}</code></td>
+      </tr>
+    `
+  }
+
+  html += '</tbody></table>'
+  showModal('Audit-Trail', html)
 }
 
-function handleReset(): void {
-  form.reset()
-  resultsDiv.classList.remove('show')
-  validationDiv.classList.remove('show')
-  Object.values(fields).forEach((field) => {
-    const group = field.closest('.form-group')
-    if (group) {
-      group.classList.remove('error', 'warning')
-      const errorMsg = group.querySelector('.error-message')
-      const warningMsg = group.querySelector('.warning-message')
-      if (errorMsg) errorMsg.classList.remove('show')
-      if (warningMsg) warningMsg.classList.remove('show')
+(window as any).showAuditTrail = showAuditTrail
+
+// ============================================================================
+// PARAMETER-PANEL
+// ============================================================================
+
+function rendereParameter(): void {
+  const p = currentParams
+  $('params-year').textContent = String(p.jahr)
+
+  let html = `
+    <h3>Tarif (Jahreswerte)</h3>
+    <table class="params-table">
+      <tr><th>Parameter</th><th style="text-align: right">Wert</th><th>Quelle</th></tr>
+      <tr><td>Grundfreibetrag (Zone A)</td><td class="value">${formatEUR(p.grundfreibetrag)} EUR</td><td>§ 32a EStG</td></tr>
+      <tr><td>1. Progressionszone (Zone B bis)</td><td class="value">${formatEUR(p.zoneB_max)} EUR</td><td>PAP S. 12</td></tr>
+      <tr><td>2. Progressionszone (Zone C bis)</td><td class="value">${formatEUR(p.zoneC_max)} EUR</td><td>PAP S. 12</td></tr>
+      <tr><td>Linearzone 42% (Zone D bis)</td><td class="value">277.825 EUR</td><td>PAP S. 12</td></tr>
+      <tr><td>Solidaritätszuschlag-Freigrenze</td><td class="value">${formatEUR(p.solzFreigrenze)} EUR</td><td>§ 5 SolzG</td></tr>
+      <tr><td>Kinderfreibetrag (pro Kind)</td><td class="value">${formatEUR(p.kinderfreibetragJahr)} EUR</td><td>§ 32 EStG</td></tr>
+    </table>
+
+    <h3>Sozialversicherung (Sätze in %)</h3>
+    <table class="params-table">
+      <tr><th>Versicherung</th><th style="text-align: right">Gesamt-Satz</th><th style="text-align: right">AN-Satz</th><th>BBG (Jahr)</th></tr>
+      <tr><td>Rentenversicherung West</td><td class="value">${p.rvSatzGesamt}%</td><td class="value">${(p.rvSatzGesamt / 2).toFixed(2)}%</td><td class="value">${formatEUR(p.rvBbgWest)}</td></tr>
+      <tr><td>Rentenversicherung Ost</td><td class="value">${p.rvSatzGesamt}%</td><td class="value">${(p.rvSatzGesamt / 2).toFixed(2)}%</td><td class="value">${formatEUR(p.rvBbgOst)}</td></tr>
+      <tr><td>Arbeitslosenversicherung</td><td class="value">${p.alvSatzGesamt}%</td><td class="value">${(p.alvSatzGesamt / 2).toFixed(2)}%</td><td class="value">${formatEUR(p.alvBbg)}</td></tr>
+      <tr><td>Krankenversicherung (Basis)</td><td class="value">${p.kvBasisSatzGesamt}%</td><td class="value">${(p.kvBasisSatzGesamt / 2).toFixed(2)}%</td><td class="value">${formatEUR(p.kvBbg)}</td></tr>
+      <tr><td>Pflegeversicherung (Basis)</td><td class="value">${p.pvBasisSatzGesamt}%</td><td class="value">${(p.pvBasisSatzGesamt / 2).toFixed(2)}%</td><td class="value">${formatEUR(p.kvBbg)}</td></tr>
+    </table>
+
+    <h3>Pflegeversicherung-Modifikatoren</h3>
+    <table class="params-table">
+      <tr><th>Modifikator</th><th style="text-align: right">Wert</th><th>Bedingung</th></tr>
+      <tr><td>Zuschlag Kinderlose</td><td class="value">+${p.pvZuschlagKinderlos}%</td><td>Ab 23 Jahren ohne Kinder</td></tr>
+      <tr><td>Abschlag pro Kind</td><td class="value">-${p.pvAbschlagProKind}%</td><td>Ab 2. Kind, max. -1,00%</td></tr>
+      <tr><td>Sachsen-Zuschlag</td><td class="value">+${p.pvSachsenZuschlag}%</td><td>Wohnsitz Sachsen</td></tr>
+    </table>
+
+    <div class="info-box" style="margin-top: 16px">
+      <strong>Hinweis:</strong> Werte sind aus PAP ${p.jahr} (offizielle Veröffentlichung BMF) übernommen.
+      Edit-Funktionalität wird in einer späteren Version implementiert.
+    </div>
+  `
+
+  $('params-content').innerHTML = html
+}
+
+// ============================================================================
+// AUDIT-TAB
+// ============================================================================
+
+function rendereAudit(): void {
+  if (auditHistory.length === 0) {
+    $('audit-list').innerHTML = '<p style="color: var(--text-muted); padding: 12px">Noch keine Berechnungen durchgeführt.</p>'
+    return
+  }
+
+  let html = `
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Audit-ID</th>
+          <th>Zeit</th>
+          <th>Brutto</th>
+          <th>STKL</th>
+          <th>Netto</th>
+          <th>Quote</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+  `
+
+  for (let i = auditHistory.length - 1; i >= 0; i--) {
+    const e = auditHistory[i]
+    html += `
+      <tr>
+        <td><code style="font-size: 10px">${e.id}</code></td>
+        <td>${e.timestamp.toLocaleTimeString('de-DE')}</td>
+        <td class="value">${formatEUR(e.eingabe.bruttolohn)} EUR</td>
+        <td>${e.eingabe.steuerklasse}</td>
+        <td class="value">${formatEUR(e.ergebnis.netto)} EUR</td>
+        <td class="value">${formatProzent(e.ergebnis.belastungsquote)}</td>
+        <td><button class="small-button outline" onclick="zeigeAuditDetails(${i})">Details</button></td>
+      </tr>
+    `
+  }
+
+  html += '</tbody></table>'
+  $('audit-list').innerHTML = html
+}
+
+(window as any).zeigeAuditDetails = (index: number) => {
+  const e = auditHistory[index]
+  if (!e) return
+
+  let html = `
+    <h3>Eingabe</h3>
+    <table>
+      <tr><td>Bruttolohn</td><td>${formatEUR(e.eingabe.bruttolohn)} EUR (${lzzName(e.eingabe.lohnZZ)})</td></tr>
+      <tr><td>Steuerklasse</td><td>${e.eingabe.steuerklasse}</td></tr>
+      <tr><td>Kinderfreibeträge</td><td>${e.eingabe.kinderfreibetraege}</td></tr>
+      <tr><td>Region</td><td>${e.eingabe.westOst}</td></tr>
+    </table>
+
+    <h3 style="margin-top: 14px">Berechnungsschritte</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Schritt</th><th>Eingabe</th><th>Ergebnis</th><th>Ref.</th></tr>
+      </thead>
+      <tbody>
+  `
+
+  for (const s of e.ergebnis.schritte) {
+    html += `
+      <tr>
+        <td>${s.nr}</td>
+        <td><strong>${s.titel}</strong><br><span style="font-size: 10px; color: var(--text-muted)">${s.beschreibung}</span>${s.formel ? `<br><code>${s.formel}</code>` : ''}</td>
+        <td style="font-size: 11px">${s.eingabe}</td>
+        <td style="font-size: 11px"><strong>${s.ergebnis}</strong></td>
+        <td style="font-size: 10px"><code>${s.papReferenz}</code></td>
+      </tr>
+    `
+  }
+
+  html += '</tbody></table>'
+  showModal(`Audit-Trail · ${e.id}`, html)
+}
+
+// ============================================================================
+// PAP-IMPORT
+// ============================================================================
+
+function setupPAPImport(): void {
+  const fileInput = $i('pap-file')
+  fileInput.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+
+    const text = await file.text()
+
+    // Vereinfachte Regex-Extraktion
+    const grundfreibetragMatch = text.match(/Grundfreibetrag[:\s]*(?:EUR\s+)?(\d+(?:[.\s]\d{3})*(?:,\d{2})?)/i)
+    const rvBbgMatch = text.match(/Rentenversicherung[\s\S]{0,200}?Beitragsbemessungsgrenze[\s\S]{0,100}?(\d+(?:[.\s]\d{3})*)/i)
+    const kvBbgMatch = text.match(/Krankenversicherung[\s\S]{0,200}?Beitragsbemessungsgrenze[\s\S]{0,100}?(\d+(?:[.\s]\d{3})*)/i)
+    const solzMatch = text.match(/Solidaritätszuschlag[\s\S]{0,200}?Freigrenze[\s\S]{0,100}?(\d+(?:[.\s]\d{3})*)/i)
+
+    const parseGermanNumber = (s: string): number => {
+      return parseFloat(s.replace(/[.\s]/g, '').replace(',', '.'))
+    }
+
+    let html = `
+      <h3>Erkannte Parameter aus "${file.name}"</h3>
+      <table class="params-table">
+        <thead>
+          <tr><th>Parameter</th><th style="text-align: right">Aktuell (${currentYear})</th><th style="text-align: right">Erkannt</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+    `
+
+    const checks = [
+      { label: 'Grundfreibetrag', match: grundfreibetragMatch, current: currentParams.grundfreibetrag },
+      { label: 'RV-BBG', match: rvBbgMatch, current: currentParams.rvBbgWest },
+      { label: 'KV-BBG', match: kvBbgMatch, current: currentParams.kvBbg },
+      { label: 'SolZ-Freigrenze', match: solzMatch, current: currentParams.solzFreigrenze },
+    ]
+
+    let foundCount = 0
+    for (const check of checks) {
+      const val = check.match ? parseGermanNumber(check.match[1]) : null
+      const status = val === null ? '✗ nicht gefunden' : val === check.current ? '✓ unverändert' : '🔄 abweichend'
+      const color = val === null ? 'var(--text-faded)' : val === check.current ? 'var(--success)' : 'var(--warning)'
+
+      if (val !== null) foundCount++
+
+      html += `
+        <tr>
+          <td>${check.label}</td>
+          <td class="value">${formatEUR(check.current)}</td>
+          <td class="value">${val !== null ? formatEUR(val) : '—'}</td>
+          <td style="color: ${color}; font-weight: 600">${status}</td>
+        </tr>
+      `
+    }
+
+    html += `
+        </tbody>
+      </table>
+      <div class="info-box" style="margin-top: 14px">
+        <strong>${foundCount} von ${checks.length}</strong> Parametern gefunden.
+        ${foundCount < checks.length ? 'Für intelligentere Extraktion bitte Claude API einrichten (siehe PHASE_5_INTEGRATION_GUIDE.md).' : ''}
+      </div>
+    `
+
+    $('pap-results').innerHTML = html
+  })
+}
+
+// ============================================================================
+// TAB-NAVIGATION
+// ============================================================================
+
+function setupTabs(): void {
+  document.querySelectorAll('nav.tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = (btn as HTMLElement).dataset.tab!
+      // Tab-Button aktiv setzen
+      document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      // Tab-Inhalt anzeigen
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'))
+      $(`tab-${tab}`).classList.remove('hidden')
+
+      // Tab-spezifische Aktion
+      if (tab === 'parameter') rendereParameter()
+      if (tab === 'audit') rendereAudit()
+    })
+  })
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+function setupEventListeners(): void {
+  const fields = [
+    'lohnZZ', 'stkl', 'bruttolohn', 'freibetrag', 'kinder', 'geburtsjahr',
+    'rvVersichert', 'kvGesetzlich', 'kvZusatz', 'pvKinderlos', 'pvSachsen',
+    'westOst', 'kirchensteuer',
+  ]
+
+  for (const id of fields) {
+    const el = document.getElementById(id)
+    if (el) {
+      el.addEventListener('input', berechne)
+      el.addEventListener('change', berechne)
+    }
+  }
+
+  // Year-Wechsel
+  $s('yearSelect').addEventListener('change', () => {
+    currentYear = parseInt($s('yearSelect').value)
+    currentParams = PARAMETER[currentYear]
+    berechne()
+  })
+
+  // PAP-Badges Click → Modal
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    if (target.classList.contains('pap-badge')) {
+      const key = target.dataset.pap
+      if (key) showPAPInfo(key)
     }
   })
 }
 
-function getFormInputs(): Partial<LohnsteuerInputs> {
-  return {
-    lohnZZ: parseInt(fields.lohnZZ.value) as any,
-    stkl: parseInt(fields.stkl.value) as any,
-    bruttolohn: Math.round(parseFloat(fields.bruttolohn.value) * 100),
-    freibetrag: fields.freibetrag.value ? Math.round(parseFloat(fields.freibetrag.value) * 100) : undefined,
-    rvStatus: parseInt(fields.rvStatus.value) as any,
-    kvStatus: parseInt(fields.kvStatus.value) as any,
-    kvZusatzbeitragSatz: parseFloat(fields.kvZusatzSatz.value),
-    pvStatus: parseInt(fields.pvStatus.value) as any,
-    pvSachsenZuschlag: parseInt(fields.pvSachsen.value) as any,
-    anzahlKinderfreibetraege: parseInt(fields.kinderfreibetraege.value),
-    geburtsjahr: fields.geburtsjahr.value ? parseInt(fields.geburtsjahr.value) : undefined,
-    westOst: parseInt(fields.westOst.value) as any,
-    geringfuegig: 0,
-    gleitzone: 0,
-  }
+(window as any).resetForm = () => {
+  $i('bruttolohn').value = '5000'
+  $s('lohnZZ').value = '2'
+  $s('stkl').value = '1'
+  $i('freibetrag').value = '0'
+  $i('kinder').value = '0'
+  $i('geburtsjahr').value = ''
+  $s('rvVersichert').value = '1'
+  $s('kvGesetzlich').value = '1'
+  $i('kvZusatz').value = '2.5'
+  $s('pvKinderlos').value = '0'
+  $s('pvSachsen').value = '0'
+  $s('westOst').value = 'west'
+  $s('kirchensteuer').value = '0'
+  berechne()
 }
 
-// ============================================================================
-// VALIDIERUNG
-// ============================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  setupTabs()
+  setupEventListeners()
+  setupPAPImport()
+  berechne()
+  console.log('✅ LexLohnRechner v2.0 geladen')
+})
 
-function validateField(field: HTMLElement): void {
-  const fieldName = field.id as keyof typeof fields
-
-  if (fieldName === 'bruttolohn') {
-    const result = validator.validateBruttolohn(parseFloat((field as HTMLInputElement).value))
-    updateFieldValidation(field as HTMLInputElement, result.errors)
-  }
-
-  if (fieldName === 'geburtsjahr') {
-    const value = (field as HTMLInputElement).value
-    if (value) {
-      const result = validator.validateGeburtsjahr(parseInt(value))
-      updateFieldValidation(field as HTMLInputElement, result.errors)
-    }
-  }
-
-  if (fieldName === 'kinderfreibetraege') {
-    const result = validator.validateKinderfreibetraege(
-      parseInt((field as HTMLInputElement).value),
-      parseInt(fields.stkl.value) as any
-    )
-    updateFieldValidation(field as HTMLInputElement, result.errors)
-  }
+// Auch sofort init falls DOM bereits ready
+if (document.readyState !== 'loading') {
+  setupTabs()
+  setupEventListeners()
+  setupPAPImport()
+  berechne()
+  console.log('✅ LexLohnRechner v2.0 geladen (sofort)')
 }
-
-function updateFieldValidation(field: HTMLInputElement, errors: ValidationError[]): void {
-  const group = field.closest('.form-group') as HTMLElement
-  if (!group) return
-
-  // Clear previous states
-  group.classList.remove('error', 'warning')
-
-  const errorMessages = errors.filter((e) => e.severity === 'error')
-  const warningMessages = errors.filter((e) => e.severity === 'warning')
-
-  if (errorMessages.length > 0) {
-    group.classList.add('error')
-    const errorMsg = group.querySelector('.error-message') as HTMLElement
-    if (errorMsg) {
-      errorMsg.textContent = errorMessages[0].message
-      errorMsg.classList.add('show')
-    }
-  }
-
-  if (warningMessages.length > 0 && errorMessages.length === 0) {
-    group.classList.add('warning')
-    const warningMsg = group.querySelector('.warning-message') as HTMLElement
-    if (warningMsg) {
-      warningMsg.textContent = warningMessages[0].message
-      warningMsg.classList.add('show')
-    }
-  }
-}
-
-function displayValidationErrors(errors: ValidationError[]): void {
-  validationDiv.innerHTML = ''
-  validationDiv.classList.add('show')
-
-  const errorCount = errors.filter((e) => e.severity === 'error').length
-  const warningCount = errors.filter((e) => e.severity === 'warning').length
-
-  if (errorCount > 0) {
-    const errorSection = document.createElement('div')
-    errorSection.className = 'validation-summary errors show'
-
-    const title = document.createElement('h3')
-    title.textContent = `❌ ${errorCount} Fehler gefunden`
-    errorSection.appendChild(title)
-
-    const ul = document.createElement('ul')
-    errors
-      .filter((e) => e.severity === 'error')
-      .forEach((err) => {
-        const li = document.createElement('li')
-        let text = err.message
-        if (err.pap_reference) text += ` (${err.pap_reference})`
-        li.textContent = text
-        ul.appendChild(li)
-      })
-
-    errorSection.appendChild(ul)
-    validationDiv.appendChild(errorSection)
-
-    // Mark fields with errors
-    errors
-      .filter((e) => e.severity === 'error')
-      .forEach((err) => {
-        const field = document.getElementById(err.field) as HTMLInputElement
-        if (field) {
-          const group = field.closest('.form-group') as HTMLElement
-          if (group) {
-            group.classList.add('error')
-            const errorMsg = group.querySelector('.error-message') as HTMLElement
-            if (errorMsg) {
-              errorMsg.textContent = err.message
-              errorMsg.classList.add('show')
-            }
-          }
-        }
-      })
-  }
-
-  if (warningCount > 0) {
-    const warningSection = document.createElement('div')
-    warningSection.className = 'validation-summary warnings show'
-
-    const title = document.createElement('h3')
-    title.textContent = `⚠️ ${warningCount} Warnungen`
-    warningSection.appendChild(title)
-
-    const ul = document.createElement('ul')
-    errors
-      .filter((e) => e.severity === 'warning')
-      .forEach((warn) => {
-        const li = document.createElement('li')
-        let text = warn.message
-        if (warn.pap_reference) text += ` (${warn.pap_reference})`
-        li.textContent = text
-        ul.appendChild(li)
-      })
-
-    warningSection.appendChild(ul)
-    validationDiv.appendChild(warningSection)
-  }
-}
-
-// ============================================================================
-// BERECHNUNG (Phase 1: Nur Eingabe-Anzeige)
-// ============================================================================
-
-function performCalculation(inputs: Partial<LohnsteuerInputs>): void {
-  try {
-    // Phase 2: Echte Berechnungen mit vollständiger Nachverfolgung
-    const auditId = auditLogger.startCalculation(inputs as LohnsteuerInputs)
-
-    // Lohnsteuer berechnen
-    const taxResult = taxCalculator.calculateTaxes(inputs as LohnsteuerInputs)
-
-    // Sozialversicherung berechnen
-    const svResult = socialCalculator.calculateContributions(inputs as LohnsteuerInputs)
-
-    // Ergebnisse kombinieren
-    const completeResult = {
-      ...taxResult,
-      rvBeitrag: svResult.rvBeitrag,
-      alvBeitrag: svResult.alvBeitrag,
-      kvBeitrag: svResult.kvBeitrag,
-      pvBeitrag: svResult.pvBeitrag,
-      auditTraceId: auditId,
-      calculatedAt: new Date(),
-    }
-
-    // Audit-Log beenden
-    auditLogger.finishCalculation(completeResult)
-
-    // Ergebnisse anzeigen
-    const brutto = (inputs.bruttolohn || 0) / 100
-    const total = (completeResult.lstlzz +
-                  completeResult.solzlzz +
-                  completeResult.rvBeitrag +
-                  completeResult.alvBeitrag +
-                  completeResult.kvBeitrag +
-                  completeResult.pvBeitrag)
-    const netto = (inputs.bruttolohn || 0) - total
-    const quote = brutto > 0 ? ((total / (inputs.bruttolohn || 0)) * 100) : 0
-
-    displayResults({
-      brutto,
-      lst: completeResult.lstlzz,
-      solz: completeResult.solzlzz,
-      kv8: completeResult.kist8lzz,
-      kv9: completeResult.kist9lzz,
-      rv: completeResult.rvBeitrag,
-      alv: completeResult.alvBeitrag,
-      kv: completeResult.kvBeitrag,
-      pv: completeResult.pvBeitrag,
-      total,
-      netto,
-      quote,
-      auditId: completeResult.auditTraceId,
-    })
-
-    console.log('✅ Berechnung erfolgreich', {
-      auditId,
-      brutto: brutto.toFixed(2),
-      netto: (netto / 100).toFixed(2),
-    })
-  } catch (error) {
-    console.error('❌ Berechnungsfehler:', error)
-    validationDiv.innerHTML = `
-      <div class="validation-summary errors show">
-        <h3>❌ Fehler bei Berechnung</h3>
-        <ul>
-          <li>${error instanceof Error ? error.message : 'Unbekannter Fehler'}</li>
-        </ul>
-      </div>
-    `
-    validationDiv.classList.add('show')
-  }
-}
-
-interface CalculationResults {
-  brutto: number // EUR (nicht Cent!)
-  lst: number // EUR in Cent
-  solz: number
-  kv8: number
-  kv9: number
-  rv: number
-  alv: number
-  kv: number
-  pv: number
-  total: number // EUR in Cent
-  netto: number // EUR in Cent
-  quote: number // Prozentsatz
-  auditId?: string
-}
-
-function displayResults(results: CalculationResults): void {
-  const format = (centWert: number) => {
-    const eur = centWert / 100
-    return eur.toLocaleString('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  }
-
-  const percent = (centWert: number, brutto: number) => {
-    if (brutto === 0) return '0,00%'
-    return `${((centWert / (brutto * 100)) * 100).toFixed(2)}%`
-  }
-
-  // Bruttolohn
-  ;(document.getElementById('result-brutto') as HTMLElement).textContent = `${results.brutto.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
-
-  // Lohnsteuer & Zuschläge
-  ;(document.getElementById('result-lst') as HTMLElement).textContent = `${format(results.lst)} EUR`
-  ;(document.getElementById('result-lst-percent') as HTMLElement).textContent = percent(results.lst, results.brutto)
-
-  ;(document.getElementById('result-solz') as HTMLElement).textContent = `${format(results.solz)} EUR`
-  ;(document.getElementById('result-solz-percent') as HTMLElement).textContent = percent(results.solz, results.brutto)
-  ;(document.getElementById('result-solz-hint') as HTMLElement).textContent =
-    results.solz === 0 ? 'Unter Freigrenze (20.350 EUR)' : 'Solidaritätszuschlag fällig'
-
-  ;(document.getElementById('result-kst8') as HTMLElement).textContent = `${format(results.kv8)} EUR`
-  ;(document.getElementById('result-kst8-percent') as HTMLElement).textContent = percent(results.kv8, results.brutto)
-
-  ;(document.getElementById('result-kst9') as HTMLElement).textContent = `${format(results.kv9)} EUR`
-  ;(document.getElementById('result-kst9-percent') as HTMLElement).textContent = percent(results.kv9, results.brutto)
-
-  // Sozialversicherung
-  ;(document.getElementById('result-rv') as HTMLElement).textContent = `${format(results.rv)} EUR`
-  ;(document.getElementById('result-rv-percent') as HTMLElement).textContent = percent(results.rv, results.brutto)
-
-  ;(document.getElementById('result-alv') as HTMLElement).textContent = `${format(results.alv)} EUR`
-  ;(document.getElementById('result-alv-percent') as HTMLElement).textContent = percent(results.alv, results.brutto)
-
-  ;(document.getElementById('result-kv') as HTMLElement).textContent = `${format(results.kv)} EUR`
-  ;(document.getElementById('result-kv-percent') as HTMLElement).textContent = percent(results.kv, results.brutto)
-
-  ;(document.getElementById('result-pv') as HTMLElement).textContent = `${format(results.pv)} EUR`
-  ;(document.getElementById('result-pv-percent') as HTMLElement).textContent = percent(results.pv, results.brutto)
-
-  // Belastungsquoten
-  const lstQuote = percent(results.lst, results.brutto)
-  const lstSolzQuote = percent(results.lst + results.solz, results.brutto)
-  const totalQuote = percent(results.total, results.brutto)
-
-  ;(document.getElementById('result-avg-lst') as HTMLElement).textContent = lstQuote
-  ;(document.getElementById('result-avg-lst-solz') as HTMLElement).textContent = lstSolzQuote
-  ;(document.getElementById('result-avg-total') as HTMLElement).textContent = totalQuote
-
-  // Zusammenfassung
-  ;(document.getElementById('result-total') as HTMLElement).textContent = `${format(results.total)} EUR`
-  ;(document.getElementById('result-netto') as HTMLElement).textContent = `${format(results.netto)} EUR`
-  ;(document.getElementById('result-quote') as HTMLElement).textContent = `${results.quote.toFixed(1)}%`
-
-  // Audit-ID
-  if (results.auditId) {
-    ;(document.getElementById('audit-id') as HTMLElement).textContent = results.auditId
-  }
-
-  // Audit-Button
-  const auditBtn = document.getElementById('showAuditBtn') as HTMLButtonElement
-  if (auditBtn && results.auditId) {
-    auditBtn.onclick = () => {
-      const log = auditLogger.getLog(results.auditId!)
-      if (log) {
-        console.log('📋 Audit-Trail:', log)
-        alert(`Audit-Trail ${results.auditId}:\n\n${JSON.stringify(log.calculation_steps, null, 2)}`)
-      }
-    }
-  }
-
-  resultsDiv.classList.add('show')
-}
-
-// ============================================================================
-// JAHRES-AUSWAHL & VERGLEICH
-// ============================================================================
-
-function switchYear(year: number): void {
-  const params = versionManager.getVersion(year)
-  if (!params) {
-    alert(`Parameter für Jahr ${year} nicht gefunden`)
-    return
-  }
-
-  currentYear = year
-  currentParameters = params
-  taxCalculator = new TaxCalculator(currentParameters)
-  socialCalculator = new SocialSecurityCalculator(currentParameters)
-
-  console.log(`✅ Gewechselt zu Jahr ${year}`)
-
-  // Reset results
-  ;(document.getElementById('results') as HTMLElement).classList.remove('show')
-}
-
-function showComparison(): void {
-  const availableYears = versionManager.getAvailableYears()
-
-  if (availableYears.length < 2) {
-    alert('Mindestens 2 Jahre erforderlich für Vergleich')
-    return
-  }
-
-  // Vergleich mit Vorjahr
-  const previousYear = availableYears.filter((y) => y < currentYear).pop()
-  if (!previousYear) {
-    alert('Kein Vorjahr für Vergleich verfügbar')
-    return
-  }
-
-  const changelog = versionManager.compareVersions(previousYear, currentYear)
-
-  // HTML generieren
-  let html = `
-    <h3>Änderungen ${previousYear} → ${currentYear}</h3>
-    <p><strong>Veröffentlichung PAP:</strong> ${changelog.published_date}</p>
-    <p><strong>Gesamte Änderungen:</strong> ${changelog.summary.total_changes}</p>
-    <p><strong>Kritische Änderungen:</strong> ${changelog.summary.high_impact_changes}</p>
-
-    <div class="comparison-grid">
-  `
-
-  for (const diff of changelog.differences) {
-    const impactClass = diff.impact
-    const changeType = diff.change_type
-
-    html += `
-      <div class="comparison-item ${changeType}">
-        <div class="change-label">${diff.field_name}</div>
-        <div class="change-values">
-          <strong>${previousYear}:</strong> ${formatComparisonValue(diff.old_value)}<br>
-          <strong>${currentYear}:</strong> ${formatComparisonValue(diff.new_value)}
-        </div>
-        <div class="change-impact ${impactClass}">${impactClass.toUpperCase()}</div>
-      </div>
-    `
-  }
-
-  html += '</div>'
-
-  const comparisonContent = document.getElementById('comparisonContent') as HTMLElement
-  comparisonContent.innerHTML = html
-
-  // Zeige Vergleichs-Sektion
-  ;(document.getElementById('comparisonSection') as HTMLElement).classList.add('show')
-  ;(document.querySelector('.content') as HTMLElement).style.display = 'none'
-
-  console.log('📊 Vergleich angezeigt')
-}
-
-function hideComparison(): void {
-  ;(document.getElementById('comparisonSection') as HTMLElement).classList.remove('show')
-  ;(document.querySelector('.content') as HTMLElement).style.display = 'grid'
-}
-
-function formatComparisonValue(value: any): string {
-  if (typeof value === 'number') {
-    if (value > 100000) {
-      return `${(value / 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })} EUR`
-    }
-    if (value < 1 && value > 0) {
-      return `${(value * 100).toFixed(2)}%`
-    }
-    return value.toFixed(2)
-  }
-  if (typeof value === 'object') {
-    return '[Komplexe Struktur]'
-  }
-  return String(value)
-}
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
-
-console.log('✅ LexLohnRechner v1.0 (Phase 4) - VersionManager aktiviert')
-console.log('📦 Available years:', versionManager.getAvailableYears())
-console.log('🔗 References registered:', references.getAllReferences().size)

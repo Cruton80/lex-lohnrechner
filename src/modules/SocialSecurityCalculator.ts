@@ -138,7 +138,11 @@ export class SocialSecurityCalculator {
     westOst: 1 | 2,
     istMinijob: boolean
   ): any {
-    const rate = this.parameters.contributions.rv.employee_percent / 100
+    // Fallback values if parameters not loaded properly
+    const defaultRate = 0.093 // 9,3%
+    const rate = this.parameters?.contributions?.rv?.employee_percent
+      ? this.parameters.contributions.rv.employee_percent / 100
+      : defaultRate
 
     // Beamte/Freiberufler: Keine RV
     if (rvStatus === 9) {

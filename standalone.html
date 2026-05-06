@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexLohnRechner 2026 - Standalone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .section {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fafafa;
+        }
+
+        .section h2 {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .results {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .result-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .result-value {
+            text-align: right;
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .footer {
+            background: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .help-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            .header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔢 LexLohnRechner</h1>
+            <p>Transparente Lohnsteuerberechnung 2026</p>
+            <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.8">Standalone Version (ohne npm install nötig)</p>
+        </div>
+
+        <div class="content">
+            <!-- INPUT -->
+            <div>
+                <div class="section">
+                    <h2>📝 Eingabe</h2>
+                    <div class="form-group">
+                        <label for="bruttolohn">Bruttolohn monatlich (EUR)</label>
+                        <input type="number" id="bruttolohn" value="5000" step="0.01">
+                        <div class="help-text">z.B. 5000.00</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stkl">Lohnsteuerklasse</label>
+                        <select id="stkl">
+                            <option value="1" selected>I (Ledig)</option>
+                            <option value="2">II (Alleinerziehend)</option>
+                            <option value="3">III (Verheiratet zusammen)</option>
+                            <option value="4">IV (Verheiratet einzeln)</option>
+                            <option value="5">V (Verheiratet höheres EK)</option>
+                            <option value="6">VI (Weitere Arbeitsstelle)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="kinder">Anzahl Kinder</label>
+                        <input type="number" id="kinder" value="0" min="0" max="14">
+                    </div>
+
+                    <button onclick="calculate()">🔢 Berechnen</button>
+                </div>
+            </div>
+
+            <!-- RESULTS -->
+            <div>
+                <div class="section">
+                    <h2>📊 Ergebnisse</h2>
+                    <div class="results" id="results">
+                        <div class="result-item">
+                            <div class="result-label">Bruttolohn</div>
+                            <div class="result-value" id="r-brutto">-</div>
+                        </div>
+
+                        <div style="padding-top: 20px; border-top: 2px solid #667eea; margin-top: 20px">
+                            <h3 style="color: #667eea; margin-bottom: 15px">🏛️ Lohnsteuer & Zuschläge</h3>
+                            <div class="result-item">
+                                <div class="result-label">Lohnsteuer (LSt)</div>
+                                <div class="result-value" id="r-lst">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Solidaritätszuschlag (SZ)</div>
+                                <div class="result-value" id="r-solz">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Kirchensteuer</div>
+                                <div class="result-value" id="r-kst">-</div>
+                            </div>
+                        </div>
+
+                        <div style="padding-top: 20px; border-top: 2px solid #667eea; margin-top: 20px">
+                            <h3 style="color: #667eea; margin-bottom: 15px">🏥 Sozialversicherung</h3>
+                            <div class="result-item">
+                                <div class="result-label">Rentenversicherung</div>
+                                <div class="result-value" id="r-rv">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Arbeitslosenversicherung</div>
+                                <div class="result-value" id="r-alv">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Krankenversicherung</div>
+                                <div class="result-value" id="r-kv">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Pflegeversicherung</div>
+                                <div class="result-value" id="r-pv">-</div>
+                            </div>
+                        </div>
+
+                        <div style="padding-top: 20px; border-top: 2px solid #667eea; margin-top: 20px">
+                            <h3 style="color: #667eea; margin-bottom: 15px">✓ Zusammenfassung</h3>
+                            <div class="result-item">
+                                <div class="result-label">Gesamtabzüge</div>
+                                <div class="result-value" id="r-total">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">💰 Netto-Lohn</div>
+                                <div class="result-value" id="r-netto" style="color: #4caf50; font-size: 1.2em">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">Belastungsquote</div>
+                                <div class="result-value" id="r-quote">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>LexLohnRechner v1.0</strong> — Lohnsteuerberechnung nach PAP 2026</p>
+            <p style="margin-top: 10px; font-size: 0.85em">Diese Standalone-Version ist vereinfacht. Für die vollständige Version: npm install && npm run dev</p>
+        </div>
+    </div>
+
+    <script>
+        // 2026 PAP Parameter
+        const params2026 = {
+            grundfreibetrag: 1160000, // EUR-Cent
+            spitzensteuersatz_ab: 6281000,
+            solz_freigrenze: 2035000,
+            kinderfreibetrag: 552000,
+            rv_bbg_west: 10140000,
+            rv_satz: 0.186,
+            alv_bbg: 10140000,
+            alv_satz: 0.026,
+            kv_bbg: 6975000,
+            kv_satz: 0.07,
+            kv_zusatz: 0.025,
+            pv_satz: 0.018,
+        };
+
+        function calculate() {
+            const brutto = Math.round(parseFloat(document.getElementById('bruttolohn').value) * 100);
+            const stkl = parseInt(document.getElementById('stkl').value);
+            const kinder = parseInt(document.getElementById('kinder').value);
+
+            if (brutto <= 0) {
+                alert('Bitte gültigen Bruttolohn eingeben');
+                return;
+            }
+
+            // Vereinfachte Berechnung für Demo
+            let zu_verst_einkommen = brutto - (params2026.grundfreibetrag * kinder);
+            if (zu_verst_einkommen < 0) zu_verst_einkommen = 0;
+
+            // Lohnsteuer (vereinfacht)
+            let lst = 0;
+            if (zu_verst_einkommen > params2026.grundfreibetrag) {
+                const y = (zu_verst_einkommen - params2026.grundfreibetrag) / 10000;
+                lst = Math.round((889.75 * y + 18.90) * y);
+            }
+
+            // Solidaritätszuschlag
+            const solz = lst > params2026.solz_freigrenze
+                ? Math.round(lst * 0.055)
+                : 0;
+
+            // Kirchensteuer (8%)
+            const kst = Math.round(lst * 0.08);
+
+            // Sozialversicherung
+            const rv = Math.round(Math.min(brutto, params2026.rv_bbg_west) * params2026.rv_satz);
+            const alv = Math.round(Math.min(brutto, params2026.alv_bbg) * params2026.alv_satz);
+            const kv = Math.round(Math.min(brutto, params2026.kv_bbg) * (params2026.kv_satz + params2026.kv_zusatz));
+            const pv = Math.round(Math.min(brutto, params2026.kv_bbg) * params2026.pv_satz);
+
+            // Summen
+            const total = lst + solz + kst + rv + alv + kv + pv;
+            const netto = brutto - total;
+            const quote = brutto > 0 ? (total / brutto) * 100 : 0;
+
+            // Anzeigen
+            const format = (centWert) => (centWert / 100).toLocaleString('de-DE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+
+            document.getElementById('r-brutto').textContent = format(brutto) + ' EUR';
+            document.getElementById('r-lst').textContent = format(lst) + ' EUR';
+            document.getElementById('r-solz').textContent = format(solz) + ' EUR';
+            document.getElementById('r-kst').textContent = format(kst) + ' EUR';
+            document.getElementById('r-rv').textContent = format(rv) + ' EUR';
+            document.getElementById('r-alv').textContent = format(alv) + ' EUR';
+            document.getElementById('r-kv').textContent = format(kv) + ' EUR';
+            document.getElementById('r-pv').textContent = format(pv) + ' EUR';
+            document.getElementById('r-total').textContent = format(total) + ' EUR';
+            document.getElementById('r-netto').textContent = format(netto) + ' EUR';
+            document.getElementById('r-quote').textContent = quote.toFixed(1) + '%';
+
+            document.getElementById('results').classList.add('show');
+
+            console.log('✅ Berechnung erfolgreich', {
+                brutto: format(brutto),
+                netto: format(netto),
+                quote: quote.toFixed(1) + '%'
+            });
+        }
+
+        // Enter zum Berechnen
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') calculate();
+        });
+
+        console.log('✅ LexLohnRechner Standalone geladen (2026)');
+    </script>
+</body>
+</html>

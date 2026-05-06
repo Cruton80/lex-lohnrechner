@@ -3,8 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LexLohnRechner - Lohnsteuerberechnung 2026</title>
+    <title>LexLohnRechner 2026</title>
     <style>
+      :root {
+        --primary: #003366;
+        --primary-light: #0055a4;
+        --primary-dark: #001f3f;
+        --accent: #c8102e;
+        --success: #008542;
+        --warning: #d97706;
+        --error: #b91c1c;
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --border: #d4d4d4;
+        --text: #1a1a1a;
+        --text-muted: #595959;
+        --text-faded: #8a8a8a;
+      }
+
       * {
         margin: 0;
         padding: 0;
@@ -12,777 +28,783 @@
       }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        padding: 20px;
-        color: #333;
+        font-family: 'Georgia', 'Times New Roman', serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.5;
       }
 
-      .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        overflow: hidden;
-      }
-
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      .topbar {
+        background: var(--primary);
         color: white;
-        padding: 40px 30px;
-        text-align: center;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 3px solid var(--accent);
       }
 
-      .header h1 {
-        font-size: 2.5em;
-        margin-bottom: 10px;
+      .topbar h1 {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      .topbar h1 span {
+        font-weight: normal;
+        opacity: 0.8;
+        font-size: 14px;
+      }
+
+      .topbar-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 13px;
+      }
+
+      .topbar select,
+      .topbar button {
+        padding: 4px 10px;
+        font-size: 12px;
+        background: white;
+        color: var(--primary);
+        border: 1px solid white;
+        border-radius: 2px;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+      }
+
+      .topbar button {
+        background: transparent;
+        color: white;
+      }
+
+      .topbar button:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      nav.tabs {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        padding: 0 20px;
+      }
+
+      nav.tabs button {
+        padding: 10px 16px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        border-bottom: 3px solid transparent;
+      }
+
+      nav.tabs button.active {
+        color: var(--primary);
+        border-bottom-color: var(--accent);
+      }
+
+      nav.tabs button:hover:not(.active) {
+        color: var(--primary);
+        background: var(--bg);
+      }
+
+      main {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 16px 20px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 16px;
+      }
+
+      .panel h2 {
+        font-size: 15px;
+        color: var(--primary);
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid var(--primary);
         font-weight: 700;
       }
 
-      .header p {
-        font-size: 1.1em;
-        opacity: 0.9;
+      .panel h3 {
+        font-size: 13px;
+        color: var(--primary-dark);
+        margin: 14px 0 6px 0;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
 
-      .content {
+      /* FORM */
+      .form-row {
+        margin-bottom: 8px;
+      }
+
+      .form-row label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+
+      .form-row input,
+      .form-row select {
+        width: 100%;
+        padding: 5px 8px;
+        font-size: 13px;
+        font-family: 'Helvetica', 'Arial', sans-serif;
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        background: white;
+      }
+
+      .form-row input:focus,
+      .form-row select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(0, 51, 102, 0.1);
+      }
+
+      .form-row.error input,
+      .form-row.error select {
+        border-color: var(--error);
+        background: #fef2f2;
+      }
+
+      .form-row.warning input,
+      .form-row.warning select {
+        border-color: var(--warning);
+        background: #fffbeb;
+      }
+
+      .form-row .help {
+        font-size: 10px;
+        color: var(--text-faded);
+        margin-top: 1px;
+      }
+
+      .form-row .conflict {
+        font-size: 11px;
+        margin-top: 2px;
+        padding: 3px 6px;
+        border-radius: 2px;
+      }
+
+      .conflict.fehler {
+        background: #fef2f2;
+        color: var(--error);
+        border-left: 3px solid var(--error);
+      }
+
+      .conflict.warnung {
+        background: #fffbeb;
+        color: var(--warning);
+        border-left: 3px solid var(--warning);
+      }
+
+      .conflict.info {
+        background: #eff6ff;
+        color: var(--primary);
+        border-left: 3px solid var(--primary);
+      }
+
+      .form-grid-2 {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 30px;
-        padding: 30px;
+        gap: 8px;
       }
 
-      .section {
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 20px;
-        background: #fafafa;
-      }
-
-      .section h2 {
-        font-size: 1.3em;
-        margin-bottom: 20px;
-        color: #667eea;
-        border-bottom: 2px solid #667eea;
-        padding-bottom: 10px;
-      }
-
-      .form-group {
+      /* RESULTS */
+      .result-section {
         margin-bottom: 16px;
       }
 
-      label {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 6px;
-        color: #333;
-        font-size: 0.95em;
-      }
-
-      input[type='number'],
-      input[type='text'],
-      select {
+      table.results {
         width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 1em;
-        font-family: inherit;
-        transition: border-color 0.3s;
+        border-collapse: collapse;
+        font-family: 'Helvetica', sans-serif;
+        font-size: 13px;
       }
 
-      input[type='number']:focus,
-      input[type='text']:focus,
-      select:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      table.results th,
+      table.results td {
+        padding: 6px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
       }
 
-      .help-text {
-        font-size: 0.85em;
-        color: #666;
-        margin-top: 4px;
+      table.results th {
+        background: var(--bg);
+        font-weight: 700;
+        color: var(--primary-dark);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
       }
 
-      .error-message {
-        color: #d32f2f;
-        font-size: 0.85em;
-        margin-top: 4px;
-        display: none;
-      }
-
-      .error-message.show {
-        display: block;
-      }
-
-      .warning-message {
-        color: #f57c00;
-        font-size: 0.85em;
-        margin-top: 4px;
-        display: none;
-      }
-
-      .warning-message.show {
-        display: block;
-      }
-
-      .form-group.error input,
-      .form-group.error select {
-        border-color: #d32f2f;
-        background-color: #ffebee;
-      }
-
-      .form-group.warning input,
-      .form-group.warning select {
-        border-color: #f57c00;
-        background-color: #fff3e0;
-      }
-
-      .button-group {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 25px;
-      }
-
-      button {
-        padding: 12px 20px;
-        font-size: 1em;
+      table.results td.value {
+        text-align: right;
+        font-family: 'Consolas', 'Courier New', monospace;
         font-weight: 600;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.3s;
       }
 
-      .btn-calculate {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        grid-column: span 2;
+      table.results td.value-secondary {
+        text-align: right;
+        font-family: 'Consolas', monospace;
+        color: var(--text-faded);
+        font-size: 12px;
       }
 
-      .btn-calculate:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      table.results td.percent {
+        text-align: right;
+        color: var(--text-muted);
+        font-size: 12px;
+        width: 60px;
       }
 
-      .btn-calculate:active {
-        transform: translateY(0);
+      table.results tr.summary td {
+        font-weight: 700;
+        background: var(--bg);
+        font-size: 14px;
+        color: var(--primary-dark);
       }
 
-      .btn-reset {
-        background: #e0e0e0;
-        color: #333;
+      table.results tr.netto td {
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--success);
+        background: #f0fdf4;
       }
 
-      .btn-reset:hover {
-        background: #d0d0d0;
-      }
-
-      .results {
-        background: white;
-        border: 2px solid #667eea;
-        border-radius: 8px;
-        padding: 25px;
-        margin-top: 20px;
-        display: none;
-      }
-
-      .results.show {
-        display: block;
-        animation: slideIn 0.3s ease-out;
-      }
-
-      @keyframes slideIn {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .result-item {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
-        margin-bottom: 15px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid #e0e0e0;
-      }
-
-      .result-item:last-child {
-        border-bottom: none;
-      }
-
-      .result-label {
-        font-weight: 600;
-        color: #333;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+      table.results tr.brutto td {
+        font-weight: 700;
+        font-size: 14px;
+        background: var(--bg);
       }
 
       .pap-badge {
         display: inline-block;
-        background: #667eea;
+        background: var(--primary);
         color: white;
-        font-size: 0.75em;
-        padding: 2px 6px;
-        border-radius: 3px;
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 2px;
         font-weight: 600;
-        cursor: help;
-        margin-left: auto;
+        cursor: pointer;
+        margin-left: 4px;
+        font-family: 'Helvetica', sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
       }
 
       .pap-badge:hover {
-        background: #764ba2;
+        background: var(--accent);
       }
 
-      .result-value {
-        text-align: right;
-        font-size: 1.1em;
-        font-weight: 700;
-        color: #667eea;
-        margin-top: 2px;
-      }
-
-      .result-percent {
-        text-align: right;
-        font-size: 0.85em;
-        color: #666;
-        margin-top: 2px;
-      }
-
-      .result-hint {
-        text-align: right;
-        font-size: 0.8em;
-        color: #f57c00;
+      .lzz-info {
+        font-size: 10px;
+        color: var(--text-faded);
         font-style: italic;
-        margin-top: 2px;
+        text-align: right;
       }
 
-      .pap-reference {
-        display: inline-block;
-        margin-left: 8px;
-        cursor: help;
+      /* MODAL */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
       }
 
-      .pap-icon {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        line-height: 20px;
-        text-align: center;
-        background: #667eea;
+      .modal-overlay.show {
+        display: flex;
+      }
+
+      .modal {
+        background: var(--surface);
+        border-radius: 4px;
+        max-width: 800px;
+        width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      }
+
+      .modal-header {
+        padding: 16px 20px;
+        background: var(--primary);
         color: white;
-        border-radius: 50%;
-        font-size: 0.8em;
-        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 3px solid var(--accent);
       }
 
-      .pap-reference:hover .pap-icon {
-        background: #764ba2;
+      .modal-header h2 {
+        font-size: 16px;
+        margin: 0;
       }
 
-      .validation-summary {
-        margin-top: 20px;
-        padding: 15px;
-        border-radius: 4px;
-        display: none;
+      .modal-close {
+        background: transparent;
+        border: 1px solid white;
+        color: white;
+        padding: 4px 12px;
+        cursor: pointer;
+        border-radius: 2px;
+        font-family: inherit;
+        font-size: 12px;
       }
 
-      .validation-summary.show {
-        display: block;
-      }
-
-      .validation-summary.errors {
-        background: #ffebee;
-        border-left: 4px solid #d32f2f;
-      }
-
-      .validation-summary.warnings {
-        background: #fff3e0;
-        border-left: 4px solid #f57c00;
-      }
-
-      .validation-summary h3 {
-        margin-bottom: 10px;
-        font-size: 1em;
-      }
-
-      .validation-summary ul {
-        list-style: none;
-        padding-left: 0;
-      }
-
-      .validation-summary li {
-        padding: 5px 0;
-        font-size: 0.9em;
-      }
-
-      @media (max-width: 768px) {
-        .content {
-          grid-template-columns: 1fr;
-        }
-
-        .header h1 {
-          font-size: 1.8em;
-        }
-
-        .button-group {
-          grid-template-columns: 1fr;
-        }
-
-        .btn-calculate {
-          grid-column: span 1;
-        }
-
-        .result-item {
-          grid-template-columns: 1fr;
-        }
-
-        .result-value {
-          text-align: left;
-          margin-top: 5px;
-        }
-      }
-
-      .loading {
-        text-align: center;
+      .modal-body {
         padding: 20px;
+        font-size: 13px;
       }
 
-      .spinner {
-        border: 3px solid #e0e0e0;
-        border-top: 3px solid #667eea;
-        border-radius: 50%;
+      .modal-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-family: 'Helvetica', sans-serif;
+        font-size: 12px;
+      }
+
+      .modal-body table th {
+        background: var(--bg);
+        padding: 6px 10px;
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--primary-dark);
+        border-bottom: 2px solid var(--primary);
+      }
+
+      .modal-body table td {
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+
+      .modal-body table td:first-child {
+        font-weight: 700;
+        color: var(--primary);
         width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-        margin: 0 auto;
       }
 
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
+      .modal-body code {
+        background: var(--bg);
+        padding: 2px 6px;
+        border-radius: 2px;
+        font-size: 11px;
+        color: var(--primary-dark);
       }
 
-      .footer {
-        background: #f5f5f5;
-        padding: 20px;
+      /* PARAMETER PANEL */
+      .params-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Helvetica', sans-serif;
+        font-size: 12px;
+        margin-top: 8px;
+      }
+
+      .params-table th,
+      .params-table td {
+        padding: 6px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .params-table th {
+        background: var(--bg);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .params-table td.value {
+        font-family: 'Consolas', monospace;
+        text-align: right;
+      }
+
+      /* MISC */
+      .small-button {
+        padding: 4px 10px;
+        font-size: 12px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 2px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .small-button:hover {
+        background: var(--primary-light);
+      }
+
+      .small-button.outline {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+      }
+
+      .info-box {
+        background: #eff6ff;
+        border-left: 3px solid var(--primary);
+        padding: 8px 10px;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      footer {
         text-align: center;
-        font-size: 0.9em;
-        color: #666;
-        border-top: 1px solid #e0e0e0;
-      }
-
-      .footer a {
-        color: #667eea;
-        text-decoration: none;
-      }
-
-      .footer a:hover {
-        text-decoration: underline;
-      }
-
-      /* Comparison Section */
-      .comparison-section {
-        display: none;
-      }
-
-      .comparison-section.show {
-        display: block;
-      }
-
-      .comparison-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 15px;
+        padding: 16px;
+        color: var(--text-faded);
+        font-size: 11px;
+        border-top: 1px solid var(--border);
         margin-top: 20px;
       }
 
-      .comparison-item {
-        padding: 12px;
-        background: #f9f9f9;
+      .hidden {
+        display: none !important;
+      }
+
+      .upload-area {
+        border: 2px dashed var(--border);
+        padding: 30px;
+        text-align: center;
         border-radius: 4px;
-        border-left: 4px solid #667eea;
+        background: var(--bg);
+        cursor: pointer;
       }
 
-      .comparison-item.changed {
-        border-left-color: #f57c00;
-        background: #fff3e0;
-      }
-
-      .comparison-item.added {
-        border-left-color: #4caf50;
-        background: #f1f8e9;
-      }
-
-      .comparison-item.removed {
-        border-left-color: #d32f2f;
-        background: #ffebee;
-      }
-
-      .change-label {
-        font-weight: 600;
-        font-size: 0.9em;
-        color: #333;
-        margin-bottom: 5px;
-      }
-
-      .change-values {
-        font-size: 0.85em;
-        color: #666;
-      }
-
-      .change-impact {
-        display: inline-block;
-        padding: 2px 6px;
+      .upload-area:hover {
+        border-color: var(--primary);
         background: white;
-        border-radius: 3px;
-        font-size: 0.75em;
-        font-weight: 600;
-        margin-top: 5px;
-        color: #f57c00;
       }
 
-      .change-impact.high {
-        color: #d32f2f;
-        background: #ffebee;
-      }
-
-      .change-impact.low {
-        color: #1976d2;
-        background: #e3f2fd;
+      @media (max-width: 1000px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1>🔢 LexLohnRechner</h1>
-        <p>Transparente Lohnsteuerberechnung 2026</p>
-        <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.8">PAP-konforme Berechnung mit vollständiger Dokumentation</p>
-
-        <!-- JAHR-AUSWAHL -->
-        <div style="margin-top: 15px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; text-align: center">
-          <label style="color: white; font-weight: 600; margin-right: 10px">📅 Steuerjahr:</label>
-          <select id="yearSelect" style="padding: 6px 12px; border-radius: 3px; border: none; font-weight: 600">
-            <option value="2025">2025 (Archiv)</option>
-            <option value="2026" selected>2026 (Aktuell)</option>
-            <option value="2027">2027 (Vorlage)</option>
-          </select>
-          <button id="compareBtn" style="margin-left: 10px; padding: 6px 15px; background: white; color: #667eea; border: none; border-radius: 3px; font-weight: 600; cursor: pointer">📊 Vergleich</button>
-        </div>
+    <div class="topbar">
+      <h1>LexLohnRechner <span>· Lohnsteuer 2026 nach PAP</span></h1>
+      <div class="topbar-controls">
+        <label>Steuerjahr:</label>
+        <select id="yearSelect">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+        </select>
       </div>
+    </div>
 
-      <div class="content">
-        <!-- EINGABE PANEL -->
-        <div>
-          <div class="section">
-            <h2>📝 Eingabe</h2>
-            <form id="taxForm">
-              <!-- Zeitraum & Steuerklasse -->
-              <div class="form-group">
-                <label for="lohnZZ">Lohnzahlungszeitraum</label>
-                <select id="lohnZZ" required>
-                  <option value="">-- Bitte wählen --</option>
+    <nav class="tabs">
+      <button class="active" data-tab="rechner">Rechner</button>
+      <button data-tab="parameter">Parameter</button>
+      <button data-tab="papimport">PAP-Import</button>
+      <button data-tab="audit">Audit</button>
+    </nav>
+
+    <main>
+      <!-- TAB: RECHNER -->
+      <div id="tab-rechner" class="tab-content">
+        <div class="grid">
+          <!-- EINGABE PANEL -->
+          <div class="panel">
+            <h2>Eingabe</h2>
+
+            <h3>Lohnzahlung</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="lohnZZ">
+                <label>Zeitraum</label>
+                <select id="lohnZZ">
                   <option value="1">Jährlich</option>
                   <option value="2" selected>Monatlich</option>
                   <option value="3">Wöchentlich</option>
                   <option value="4">Täglich</option>
                 </select>
-                <div class="help-text">PAP S. 1, LZZ - Zeitraum der Lohnzahlung</div>
               </div>
+              <div class="form-row" data-field="bruttolohn">
+                <label>Bruttolohn (EUR)</label>
+                <input type="number" id="bruttolohn" step="0.01" value="5000" />
+              </div>
+            </div>
 
-              <div class="form-group">
-                <label for="stkl">Lohnsteuerklasse</label>
-                <select id="stkl" required>
-                  <option value="">-- Bitte wählen --</option>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="stkl">
+                <label>Steuerklasse</label>
+                <select id="stkl">
                   <option value="1" selected>I (Ledig)</option>
                   <option value="2">II (Alleinerziehend)</option>
-                  <option value="3">III (Ehegatten zusammen)</option>
-                  <option value="4">IV (Ehegatten einzeln)</option>
-                  <option value="5">V (Ehegatten einzeln, höheres EK)</option>
-                  <option value="6">VI (Weitere Arbeitsstelle)</option>
+                  <option value="3">III (Verheiratet)</option>
+                  <option value="4">IV (Verheir. einzeln)</option>
+                  <option value="5">V (Verheir. höher)</option>
+                  <option value="6">VI (Zweitjob)</option>
                 </select>
-                <div class="help-text">PAP S. 1, STKL - Lohnsteuerklasse nach § 38b EStG</div>
               </div>
-
-              <!-- Einkommen -->
-              <div class="form-group">
-                <label for="bruttolohn">Bruttolohn (EUR)</label>
-                <input type="number" id="bruttolohn" step="0.01" placeholder="2000.00" required />
-                <div class="help-text">PAP S. 1, RE4 - Steuerpflichtiger Bruttolohn</div>
-                <div class="error-message"></div>
+              <div class="form-row" data-field="freibetrag">
+                <label>Freibetrag (EUR)</label>
+                <input type="number" id="freibetrag" step="0.01" value="0" />
               </div>
+            </div>
 
-              <div class="form-group">
-                <label for="freibetrag">Freibetrag (EUR, optional)</label>
-                <input type="number" id="freibetrag" step="0.01" placeholder="0.00" />
-                <div class="help-text">PAP S. 1, LZZFREIB - Freibetrag für diesen Lohnzahlungszeitraum</div>
+            <h3>Familie</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="kinder">
+                <label>Kinderfreibeträge</label>
+                <input type="number" id="kinder" min="0" max="14" step="0.5" value="0" />
               </div>
+              <div class="form-row" data-field="geburtsjahr">
+                <label>Geburtsjahr</label>
+                <input type="number" id="geburtsjahr" min="1900" max="2010" placeholder="z.B. 1985" />
+              </div>
+            </div>
 
-              <!-- Versicherungen -->
-              <div class="form-group">
-                <label for="rvStatus">Rentenversicherung</label>
-                <select id="rvStatus">
-                  <option value="0" selected>Gesetzlich versichert</option>
-                  <option value="9">Beamte/Freiberufler (keine RV)</option>
+            <h3>Sozialversicherung</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="rvVersichert">
+                <label>Rentenversicherung</label>
+                <select id="rvVersichert">
+                  <option value="1" selected>Gesetzlich</option>
+                  <option value="0">Befreit (Beamte/Selbst.)</option>
                 </select>
-                <div class="help-text">PAP S. 2, KRV - RV-Status</div>
               </div>
-
-              <div class="form-group">
-                <label for="kvStatus">Krankenversicherung</label>
-                <select id="kvStatus">
-                  <option value="0" selected>Gesetzlich</option>
-                  <option value="1">Privat</option>
+              <div class="form-row" data-field="kvGesetzlich">
+                <label>Krankenversicherung</label>
+                <select id="kvGesetzlich">
+                  <option value="1" selected>Gesetzlich</option>
+                  <option value="0">Privat</option>
                 </select>
-                <div class="help-text">PAP S. 2, PKPV - KV-Status</div>
               </div>
+            </div>
 
-              <div class="form-group">
-                <label for="kvZusatzSatz">KV-Zusatzbeitrag (%)</label>
-                <input type="number" id="kvZusatzSatz" step="0.1" value="2.5" min="0" max="10" />
-                <div class="help-text">Kassenindividueller Zusatzbeitrag (durchschn. 2,5%)</div>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="kvZusatz">
+                <label>KV-Zusatzbeitrag (%)</label>
+                <input type="number" id="kvZusatz" step="0.1" value="2.5" min="0" max="10" />
               </div>
-
-              <div class="form-group">
-                <label for="pvStatus">Pflegeversicherung</label>
-                <select id="pvStatus">
-                  <option value="0" selected>Mit Zuschlag</option>
-                  <option value="1">Ohne Zuschlag (kinderlos/ab 23)</option>
+              <div class="form-row" data-field="pvKinderlos">
+                <label>Pflegeversicherung</label>
+                <select id="pvKinderlos">
+                  <option value="0" selected>Mit Kindern (kein Zuschlag)</option>
+                  <option value="1">Kinderlos (+0,6%)</option>
                 </select>
-                <div class="help-text">PAP S. 2, PVZ - PV-Status</div>
               </div>
+            </div>
 
-              <div class="form-group">
-                <label for="pvSachsen">Sachsen-Zuschlag</label>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="pvSachsen">
+                <label>Sachsen-Zuschlag</label>
                 <select id="pvSachsen">
                   <option value="0" selected>Nein</option>
-                  <option value="1">Ja (+0,75%)</option>
+                  <option value="1">Ja (+0,5%)</option>
                 </select>
-                <div class="help-text">Zusätzlicher Sachsen-Zuschlag zur PV</div>
               </div>
-
-              <!-- Familie -->
-              <div class="form-group">
-                <label for="kinderfreibetraege">Anzahl Kinderfreibeträge</label>
-                <input type="number" id="kinderfreibetraege" value="0" min="0" max="14" />
-                <div class="help-text">PAP S. 2, ZKF - Kinderfreibeträge (§ 32 EStG)</div>
-                <div class="warning-message"></div>
-              </div>
-
-              <!-- Optional: Geburtsjahr -->
-              <div class="form-group">
-                <label for="geburtsjahr">Geburtsjahr (für Altersentlastung, optional)</label>
-                <input type="number" id="geburtsjahr" placeholder="z.B. 1960" min="1900" />
-                <div class="help-text">PAP S. 3, AJAHR - § 24a EStG (Altersentlastung)</div>
-                <div class="error-message"></div>
-              </div>
-
-              <!-- West/Ost -->
-              <div class="form-group">
-                <label for="westOst">Bundesland Region</label>
+              <div class="form-row" data-field="westOst">
+                <label>Region (RV)</label>
                 <select id="westOst">
-                  <option value="1" selected>West (niedrigere BBG)</option>
-                  <option value="2">Ost (höhere BBG)</option>
+                  <option value="west" selected>West</option>
+                  <option value="ost">Ost</option>
                 </select>
-                <div class="help-text">Unterschiedliche Beitragsbemessungsgrenzen</div>
-              </div>
-
-              <div class="button-group">
-                <button type="button" class="btn-reset" id="resetBtn">↻ Zurücksetzen</button>
-                <button type="button" class="btn-calculate" id="calculateBtn">🔢 Berechnen</button>
-              </div>
-            </form>
-
-            <div class="validation-summary" id="validationErrors"></div>
-          </div>
-        </div>
-
-        <!-- ERGEBNIS PANEL -->
-        <div>
-          <div class="section">
-            <h2>📊 Ergebnisse</h2>
-
-            <div class="results" id="results">
-              <!-- EINGABEZUSAMMENFASSUNG -->
-              <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 4px">
-                <div class="result-item">
-                  <div class="result-label">Bruttolohn</div>
-                  <div class="result-value" id="result-brutto">-</div>
-                </div>
-              </div>
-
-              <!-- LOHNSTEUER & ZUSCHLÄGE -->
-              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">🏛️ Lohnsteuer &amp; Zuschläge</h3>
-                <div class="result-item">
-                  <div class="result-label">Lohnsteuer <span class="pap-badge">PAP S.12</span></div>
-                  <div>
-                    <div class="result-value" id="result-lst">-</div>
-                    <div class="result-percent" id="result-lst-percent"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Solidaritätszuschlag <span class="pap-badge">PAP S.16</span></div>
-                  <div>
-                    <div class="result-value" id="result-solz">-</div>
-                    <div class="result-percent" id="result-solz-percent"></div>
-                    <div class="result-hint" id="result-solz-hint"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Kirchensteuer 8% <span class="pap-badge">PAP S.17</span></div>
-                  <div>
-                    <div class="result-value" id="result-kst8">-</div>
-                    <div class="result-percent" id="result-kst8-percent"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Kirchensteuer 9% <span class="pap-badge">PAP S.17</span></div>
-                  <div>
-                    <div class="result-value" id="result-kst9">-</div>
-                    <div class="result-percent" id="result-kst9-percent"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- SOZIALVERSICHERUNG -->
-              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">🏥 Sozialversicherung</h3>
-                <div class="result-item">
-                  <div class="result-label">Rentenversicherung <span class="pap-badge">PAP S.7</span></div>
-                  <div>
-                    <div class="result-value" id="result-rv">-</div>
-                    <div class="result-percent" id="result-rv-percent"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Arbeitslosenversicherung <span class="pap-badge">PAP S.7</span></div>
-                  <div>
-                    <div class="result-value" id="result-alv">-</div>
-                    <div class="result-percent" id="result-alv-percent"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Krankenversicherung <span class="pap-badge">PAP S.8</span></div>
-                  <div>
-                    <div class="result-value" id="result-kv">-</div>
-                    <div class="result-percent" id="result-kv-percent"></div>
-                  </div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Pflegeversicherung <span class="pap-badge">PAP S.8</span></div>
-                  <div>
-                    <div class="result-value" id="result-pv">-</div>
-                    <div class="result-percent" id="result-pv-percent"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- BELASTUNGSQUOTEN -->
-              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">📈 Belastungsquoten</h3>
-                <div class="result-item">
-                  <div class="result-label">Durchschnitt (LSt)</div>
-                  <div class="result-value" id="result-avg-lst">-</div>
-                </div>
-                <div class="result-item">
-                  <div class="result-label">Durchschnitt (LSt + SZ)</div>
-                  <div class="result-value" id="result-avg-lst-solz">-</div>
-                </div>
-                <div class="result-item">
-                  <div class="result-label">Gesamtbelastung</div>
-                  <div class="result-value" id="result-avg-total">-</div>
-                </div>
-              </div>
-
-              <!-- ZUSAMMENFASSUNG -->
-              <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #667eea">
-                <h3 style="color: #667eea; margin-bottom: 15px">✓ Zusammenfassung</h3>
-                <div class="result-item">
-                  <div class="result-label">Gesamtabzüge</div>
-                  <div class="result-value" id="result-total">-</div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">💰 Nettolohn</div>
-                  <div class="result-value" id="result-netto" style="color: #4caf50; font-size: 1.2em">-</div>
-                </div>
-
-                <div class="result-item">
-                  <div class="result-label">Belastungsquote</div>
-                  <div class="result-value" id="result-quote">-</div>
-                </div>
-              </div>
-
-              <!-- AUDIT-INFO -->
-              <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px">
-                <p style="font-size: 0.85em; color: #1976D2; margin: 0">
-                  <strong>📋 Audit-ID:</strong> <code id="audit-id" style="background: white; padding: 2px 5px; border-radius: 2px">-</code>
-                </p>
-                <p style="font-size: 0.85em; color: #1976D2; margin: 8px 0 0 0">
-                  <button id="showAuditBtn" style="background: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 0.85em">📋 Audit-Trail anzeigen</button>
-                </p>
-              </div>
-
-              <!-- HINWEIS -->
-              <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px">
-                <p style="font-size: 0.85em; color: #856404; margin: 0">
-                  <strong>ℹ️ Hinweis:</strong> Diese Berechnung erfolgt nach PAP 2026 (Stand 12.11.2025).
-                  Für offizielle Lohnsteuerberechnungen verwenden Sie die behördlich zugelassenen Systeme.
-                  Alle Quellenangaben beziehen sich auf das offizielle PAP.
-                </p>
               </div>
             </div>
 
-            <div class="loading" id="loadingSpinner" style="display: none">
-              <div class="spinner"></div>
-              <p style="margin-top: 10px; color: #667eea">Berechnung läuft...</p>
+            <h3>Sonstiges</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="kirchensteuer">
+                <label>Kirchensteuer</label>
+                <select id="kirchensteuer">
+                  <option value="0" selected>Keine</option>
+                  <option value="8">8% (BY/BW)</option>
+                  <option value="9">9% (übrige)</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>&nbsp;</label>
+                <button class="small-button outline" onclick="resetForm()" style="width: 100%">↻ Zurücksetzen</button>
+              </div>
+            </div>
+
+            <div id="conflicts-container"></div>
+          </div>
+
+          <!-- ERGEBNIS PANEL -->
+          <div class="panel">
+            <h2>Ergebnis · <span id="result-period">monatlich</span></h2>
+
+            <table class="results">
+              <thead>
+                <tr>
+                  <th>Position</th>
+                  <th style="text-align: right">Aktueller Zeitraum</th>
+                  <th style="text-align: right" id="header-next">Jährlich</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="brutto">
+                  <td>Bruttolohn</td>
+                  <td class="value" id="r-brutto">5.000,00 EUR</td>
+                  <td class="value-secondary" id="r-brutto-y">60.000,00 EUR</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-top: 12px">Steuern</h3>
+            <table class="results">
+              <tbody>
+                <tr>
+                  <td>Lohnsteuer <span class="pap-badge" data-pap="lst">PAP S.12</span></td>
+                  <td class="value" id="r-lst">-</td>
+                  <td class="value-secondary" id="r-lst-y">-</td>
+                </tr>
+                <tr>
+                  <td>Solidaritätszuschlag <span class="pap-badge" data-pap="solz">PAP S.16</span></td>
+                  <td class="value" id="r-solz">-</td>
+                  <td class="value-secondary" id="r-solz-y">-</td>
+                </tr>
+                <tr id="row-kirch" style="display: none">
+                  <td>Kirchensteuer <span class="pap-badge" data-pap="kirch">PAP S.17</span></td>
+                  <td class="value" id="r-kirch">-</td>
+                  <td class="value-secondary" id="r-kirch-y">-</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-top: 12px">Sozialversicherung</h3>
+            <table class="results">
+              <tbody>
+                <tr>
+                  <td>Rentenversicherung <span class="pap-badge" data-pap="rv">PAP S.7</span></td>
+                  <td class="value" id="r-rv">-</td>
+                  <td class="value-secondary" id="r-rv-y">-</td>
+                </tr>
+                <tr>
+                  <td>Arbeitslosenversicherung <span class="pap-badge" data-pap="alv">PAP S.7</span></td>
+                  <td class="value" id="r-alv">-</td>
+                  <td class="value-secondary" id="r-alv-y">-</td>
+                </tr>
+                <tr>
+                  <td>Krankenversicherung <span class="pap-badge" data-pap="kv">PAP S.8</span></td>
+                  <td class="value" id="r-kv">-</td>
+                  <td class="value-secondary" id="r-kv-y">-</td>
+                </tr>
+                <tr>
+                  <td>Pflegeversicherung <span class="pap-badge" data-pap="pv">PAP S.8</span></td>
+                  <td class="value" id="r-pv">-</td>
+                  <td class="value-secondary" id="r-pv-y">-</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-top: 12px">Zusammenfassung</h3>
+            <table class="results">
+              <tbody>
+                <tr class="summary">
+                  <td>Gesamtabzüge</td>
+                  <td class="value" id="r-total">-</td>
+                  <td class="value-secondary" id="r-total-y">-</td>
+                </tr>
+                <tr class="netto">
+                  <td>Netto-Auszahlung</td>
+                  <td class="value" id="r-netto">-</td>
+                  <td class="value-secondary" id="r-netto-y">-</td>
+                </tr>
+                <tr>
+                  <td>Belastungsquote</td>
+                  <td class="value" id="r-quote">-</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="info-box">
+              <strong>Audit-ID:</strong> <code id="audit-id">-</code> ·
+              <button class="small-button outline" onclick="showAuditTrail()">Audit-Trail</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- VERGLEICHS-SEKTION -->
-      <div class="comparison-section" id="comparisonSection" style="padding: 30px">
-        <h2 style="color: #667eea">📊 Jahresvergleich</h2>
-        <p id="comparisonTitle"></p>
-
-        <div id="comparisonContent"></div>
-
-        <button id="backToCalcBtn" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600">← Zurück zur Berechnung</button>
+      <!-- TAB: PARAMETER -->
+      <div id="tab-parameter" class="tab-content hidden">
+        <div class="panel">
+          <h2>Parameter <span id="params-year">2026</span></h2>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px">
+            Alle PAP-Parameter (Jahreswerte). Änderungen werden lokal gespeichert.
+          </p>
+          <div id="params-content"></div>
+        </div>
       </div>
 
-      <div class="footer">
-        <p>
-          <strong>LexLohnRechner v1.0 (Phase 4)</strong> — Lohnsteuerberechnung nach PAP |
-          <a href="#" onclick="alert('Dokumentation: BENUTZERHANDBUCH.md')">Dokumentation</a> |
-          <a href="#" onclick="alert('Kontakt: marc.grethen@gmail.com')">Kontakt</a>
-        </p>
-        <p style="margin-top: 10px; font-size: 0.85em">
-          Alle Berechnungen erfolgen nach dem offiziellen Programmablaufplan (PAP)
-        </p>
+      <!-- TAB: PAP-IMPORT -->
+      <div id="tab-papimport" class="tab-content hidden">
+        <div class="panel">
+          <h2>PAP-Import</h2>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px">
+            Hier können Sie PAP-Dokumente hochladen. Parameter werden automatisch extrahiert (Regex-basiert).
+          </p>
+          <div class="upload-area" onclick="document.getElementById('pap-file').click()">
+            <p style="font-size: 14px; color: var(--text-muted)">📄 PAP-PDF oder Text-Datei hier hochladen</p>
+            <p style="font-size: 11px; color: var(--text-faded); margin-top: 4px">Klicken zum Auswählen</p>
+            <input type="file" id="pap-file" accept=".pdf,.txt" style="display: none" />
+          </div>
+          <div id="pap-results" style="margin-top: 14px"></div>
+        </div>
+      </div>
+
+      <!-- TAB: AUDIT -->
+      <div id="tab-audit" class="tab-content hidden">
+        <div class="panel">
+          <h2>Audit-Trail (alle Berechnungen dieser Sitzung)</h2>
+          <div id="audit-list" style="font-size: 12px"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL -->
+    <div id="modal" class="modal-overlay" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="modal-title">Information</h2>
+          <button class="modal-close" onclick="closeModal()">Schließen</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
       </div>
     </div>
+
+    <footer>
+      LexLohnRechner v2.0 · Lohnsteuer-Berechnung nach PAP 2026 ·
+      Gemäß § 39b Abs. 6 EStG · Keine Gewähr · Verwenden Sie für offizielle Berechnungen die zugelassenen Programme
+    </footer>
 
     <script type="module" src="./app.ts"></script>
   </body>
