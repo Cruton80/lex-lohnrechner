@@ -389,6 +389,59 @@ function berechne(): void {
   }
 }
 
+// ============================================================================
+// ABKÜRZUNGS-TOOLTIPS
+// ============================================================================
+
+const ABBR_TITLES: Record<string, string> = {
+  '§ 32a EStG': '§ 32a Einkommensteuergesetz – Einkommensteuertarif',
+  '§ 51a EStG': '§ 51a Einkommensteuergesetz – Kirchensteuer',
+  '§ 55 SGB XI': '§ 55 Sozialgesetzbuch XI – Pflegeversicherungsbeitrag',
+  'AN-Anteil': 'Arbeitnehmer-Anteil am Gesamtbeitrag',
+  'Freigrenze/J': 'Freigrenze pro Jahr (bezogen auf Jahres-Lohnsteuer)',
+  'EUR/J': 'Euro pro Jahr',
+  'STKL': 'Steuerklasse',
+  'Eff.': 'Effektiver Durchschnittssteuersatz',
+  'SolZ': 'Solidaritätszuschlag',
+  'KiSt': 'Kirchensteuer',
+  'LSt': 'Lohnsteuer',
+  'RV': 'Rentenversicherung',
+  'ALV': 'Arbeitslosenversicherung',
+  'KV': 'Krankenversicherung',
+  'PV': 'Pflegeversicherung',
+  'Σ': 'Summe aller Abzugspositionen',
+}
+
+function wrapAbbr(text: string): string {
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  let html = esc(text)
+  // Sort longest-first so multi-word terms match before substrings
+  const entries = Object.entries(ABBR_TITLES).sort((a, b) => b[0].length - a[0].length)
+  const placeholders: string[] = []
+
+  for (const [abbr, title] of entries) {
+    const escapedAbbr = esc(abbr)
+    if (html.includes(escapedAbbr)) {
+      const idx = placeholders.length
+      placeholders.push(
+        `<abbr title="${esc(title)}">${escapedAbbr}</abbr>`
+      )
+      html = html.split(escapedAbbr).join(`\x01${idx}\x02`)
+    }
+  }
+  for (let i = 0; i < placeholders.length; i++) {
+    html = html.split(`\x01${i}\x02`).join(placeholders[i])
+  }
+  return html
+}
+
+function setFormel(id: string, text: string): void {
+  const el = document.getElementById(id)
+  if (el) el.innerHTML = wrapAbbr(text)
+}
+
 function berechneFormelTexte(
   erg: LohnsteuerErgebnis,
   eingabe: LohnsteuerEingabe,
@@ -442,43 +495,43 @@ function zeigeErgebnis(erg: LohnsteuerErgebnis, eingabe: LohnsteuerEingabe, audi
 
   // Brutto
   $('r-brutto').textContent = formatEUR(erg.bruttolohn) + ' EUR'
-  $('r-brutto-formula').textContent = formeln.brutto
+  setFormel('r-brutto-formula', formeln.brutto)
 
   // Steuern
   $('r-lst').textContent = formatEUR(erg.lohnsteuer) + ' EUR'
-  $('r-lst-formula').textContent = formeln.lst
+  setFormel('r-lst-formula', formeln.lst)
 
   $('r-solz').textContent = formatEUR(erg.solidaritaetszuschlag) + ' EUR'
-  $('r-solz-formula').textContent = formeln.solz
+  setFormel('r-solz-formula', formeln.solz)
 
   // Kirchensteuer (nur wenn aktiv)
   if (eingabe.kirchensteuer) {
     $('row-kirch').style.display = ''
     $('r-kirch').textContent = formatEUR(erg.kirchensteuer) + ' EUR'
-    $('r-kirch-formula').textContent = formeln.kirch
+    setFormel('r-kirch-formula', formeln.kirch)
   } else {
     $('row-kirch').style.display = 'none'
   }
 
   // Sozialversicherung
   $('r-rv').textContent = formatEUR(erg.rentenversicherung) + ' EUR'
-  $('r-rv-formula').textContent = formeln.rv
+  setFormel('r-rv-formula', formeln.rv)
 
   $('r-alv').textContent = formatEUR(erg.arbeitslosenversicherung) + ' EUR'
-  $('r-alv-formula').textContent = formeln.alv
+  setFormel('r-alv-formula', formeln.alv)
 
   $('r-kv').textContent = formatEUR(erg.krankenversicherung) + ' EUR'
-  $('r-kv-formula').textContent = formeln.kv
+  setFormel('r-kv-formula', formeln.kv)
 
   $('r-pv').textContent = formatEUR(erg.pflegeversicherung) + ' EUR'
-  $('r-pv-formula').textContent = formeln.pv
+  setFormel('r-pv-formula', formeln.pv)
 
   // Summen
   $('r-total').textContent = formatEUR(erg.gesamtAbzuege) + ' EUR'
-  $('r-total-formula').textContent = formeln.total
+  setFormel('r-total-formula', formeln.total)
 
   $('r-netto').textContent = formatEUR(erg.netto) + ' EUR'
-  $('r-netto-formula').textContent = formeln.netto
+  setFormel('r-netto-formula', formeln.netto)
 
   $('r-quote').textContent = formatProzent(erg.belastungsquote)
 

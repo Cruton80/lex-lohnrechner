@@ -316,10 +316,27 @@
       }
 
       table.results td.formula-cell {
-        color: var(--text-muted);
+        text-align: right;
+        color: var(--text-faint);
         font-size: 11px;
-        font-style: italic;
-        padding-right: 8px;
+        font-style: normal;
+        font-weight: 400;
+        padding-right: 10px;
+      }
+
+      /* Override bold/color inherited from special rows */
+      table.results tr.brutto td.formula-cell,
+      table.results tr.summary td.formula-cell,
+      table.results tr.netto td.formula-cell {
+        font-weight: 400;
+        color: var(--text-faint);
+        font-size: 11px;
+        background: inherit;
+      }
+
+      table.results td.formula-cell abbr {
+        text-decoration: underline dotted var(--border-mid);
+        cursor: help;
       }
 
       table.results td.percent {
