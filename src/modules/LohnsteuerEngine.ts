@@ -33,6 +33,43 @@ export interface LohnsteuerEingabe {
   // Stage 2: zusätzliche PAP-Parameter
   faktor4?: number         // Faktor STKL IV (F, 0 < F ≤ 1,0 — nur relevant bei Steuerklasse IV)
   kvMonatsbeitragPKV?: number  // KV+PV Monatsbeitrag (VKV) bei privater Krankenversicherung
+  // Stage 3: Beschäftigungsform (Excel E34/E35)
+  minijob?: boolean            // Geringfügige Beschäftigung § 40a EStG (gering E34)
+  gleitzone?: boolean          // Übergangsbereich/Midijob § 20 SGB IV (gleit E35)
+  // Stage 3: Außerordentliche Einkünfte § 34 EStG (Excel E19/E20)
+  abfindung?: number           // Abfindung/Entschädigung § 24 Nr. 1 EStG (SONSTENT E20)
+  mehrjBezuege?: number        // Mehrjährige Bezüge § 34 Abs. 2 Nr. 4 EStG (mehrjBez E19)
+}
+
+// Fünftelregelung § 34 EStG (Abfindung / Mehrjährige Bezüge)
+export interface AbfindungErgebnis {
+  betrag: number              // Gesamtbetrag Abfindung + MehrjBez
+  jre4: number                // JRE4 Basis
+  lstBasis: number            // LSt auf JRE4 allein
+  lstFuenftelzusatz: number   // LSt-Zuwachs durch + 1/5 Abfindung
+  lstAbfindung: number        // lstFuenftelzusatz × 5
+  solz: number
+  kirchensteuer: number
+  gesamtAbzuege: number
+  effektiverSteuersatz: number // % (gesamtAbzuege / betrag)
+}
+
+// Midijob/Übergangsbereich § 20 SGB IV
+export interface MidijobInfo {
+  bruttolohnMt: number        // Tatsächliches Monatsentgelt
+  g1: number                  // Minijob-Grenze
+  g2: number                  // Midijob-Obergrenze
+  faktorF: number             // Übergangsbereich-Faktor
+  bpeJahr: number             // Beitragspflichtige Einnahme AN (Jahr)
+  svReduktionJahr: number     // Ersparnis gegenüber voller SV (Jahr)
+}
+
+// Grenzsteuersatz (analog AMLohnAbgabenLast() in Excel)
+export interface GrenzsteuersatzInfo {
+  delta: number               // Zuwachsbetrag (100 EUR/Jahr)
+  grenzsteuersatzLst: number  // % Lohnsteuer auf nächste 100 EUR
+  grenzsteuersatzSV: number   // % Sozialversicherung auf nächste 100 EUR
+  grenzsteuersatzGesamt: number // % Gesamtbelastung auf nächste 100 EUR
 }
 
 export interface SonsteBezuegErgebnis {
@@ -88,6 +125,12 @@ export interface LohnsteuerErgebnis {
 
   // Sonstige Bezüge (Einmalzahlungen, nur wenn eingegeben)
   sonsteBezuege?: SonsteBezuegErgebnis
+  // Stage 3
+  abfindung?: AbfindungErgebnis
+  isMinijob: boolean
+  isMidijob: boolean
+  midijobInfo?: MidijobInfo
+  grenzsteuersatz: GrenzsteuersatzInfo
 
   // Audit-Schritte
   schritte: BerechnungsSchritt[]
@@ -133,6 +176,10 @@ export interface ParameterJahr {
   // Pauschbeträge (Jahreswerte EUR)
   werbungskostenPauschale: number
   sonderausgabenPauschale: number
+  // Stage 3: Minijob / Übergangsbereich (§ 8 / § 20 SGB IV)
+  minijobGrenzeMt: number    // Monatsgrenze geringfügige Beschäftigung (EUR)
+  midijobGrenzeMt: number    // Obere Grenze Übergangsbereich (EUR)
+  midijobFaktorF: number     // AN-SV-Reduktionsfaktor im Übergangsbereich
 }
 
 export const PAP_2026: ParameterJahr = {
@@ -155,6 +202,9 @@ export const PAP_2026: ParameterJahr = {
   kvBbg: 69750,
   werbungskostenPauschale: 1230,  // § 9a EStG (Arbeitnehmer-Pauschbetrag)
   sonderausgabenPauschale: 36,    // § 10c EStG
+  minijobGrenzeMt: 556,
+  midijobGrenzeMt: 2000,
+  midijobFaktorF: 0.6846,
 }
 
 export const PAP_2025: ParameterJahr = {
@@ -177,6 +227,9 @@ export const PAP_2025: ParameterJahr = {
   kvBbg: 66150,
   werbungskostenPauschale: 1230,
   sonderausgabenPauschale: 36,
+  minijobGrenzeMt: 556,
+  midijobGrenzeMt: 2000,
+  midijobFaktorF: 0.6846,
 }
 
 export const PAP_2027: ParameterJahr = {
@@ -567,19 +620,71 @@ export function berechneLohnsteuer(
   })
 
   // ============================================
+  // 1b. Beschäftigungsform: Minijob / Midijob (§ 8 / § 20 SGB IV)
+  // ============================================
+  const bruttoMt = bruttoJahr / 12
+  const isMinijob = eingabe.minijob === true || bruttoMt <= params.minijobGrenzeMt
+  const isMidijob = !isMinijob && (
+    eingabe.gleitzone === true ||
+    (bruttoMt > params.minijobGrenzeMt && bruttoMt <= params.midijobGrenzeMt)
+  )
+
+  // AN-SV-Basis: bei Midijob reduziert gemäß § 20 Abs. 2 SGB IV
+  let svBasisJahr = bruttoJahr
+  let midijobInfoObj: MidijobInfo | undefined
+
+  if (isMinijob) {
+    svBasisJahr = 0  // AN zahlt keine SV-Beiträge im Minijob
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Minijob erkannt',
+      beschreibung: `Brutto ≤ ${params.minijobGrenzeMt} EUR/Monat → Pauschalsteuer 2% (AG-Last, § 40a EStG)`,
+      formel: 'AN-LSt = 0, AN-SV = 0',
+      eingabe: `Monatliches Brutto: ${bruttoMt.toFixed(2)} EUR`,
+      ergebnis: 'Steuer- und SV-Abzüge für AN: 0 EUR',
+      papReferenz: '§ 40a EStG, § 8 SGB IV (E34: gering)',
+    })
+  } else if (isMidijob) {
+    const G1j = params.minijobGrenzeMt * 12
+    const G2j = params.midijobGrenzeMt * 12
+    const F = params.midijobFaktorF
+    const bpeJahr = F * G1j + (G2j / (G2j - G1j)) * (bruttoJahr - G1j)
+    svBasisJahr = Math.max(0, Math.min(bpeJahr, bruttoJahr))
+    midijobInfoObj = { bruttolohnMt: bruttoMt, g1: params.minijobGrenzeMt, g2: params.midijobGrenzeMt, faktorF: F, bpeJahr, svReduktionJahr: 0 }
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Midijob / Übergangsbereich',
+      beschreibung: `Brutto im Übergangsbereich (${params.minijobGrenzeMt}–${params.midijobGrenzeMt} EUR/Mt) → reduzierte AN-SV gemäß § 20 SGB IV`,
+      formel: `BPE = F×G1 + G2/(G2−G1)×(AE−G1) = ${F}×${G1j} + ${(G2j/(G2j-G1j)).toFixed(3)}×(${bruttoJahr.toFixed(0)}−${G1j})`,
+      eingabe: `Monatliches Brutto: ${bruttoMt.toFixed(2)} EUR, F = ${F}`,
+      ergebnis: `BPE = ${bpeJahr.toFixed(2)} EUR/Jahr (statt ${bruttoJahr.toFixed(2)})`,
+      papReferenz: '§ 20 Abs. 2 SGB IV (E35: gleit)',
+    })
+  }
+
+  // ============================================
   // 2. Sozialversicherung berechnen (für Vorsorgepauschale)
   // ============================================
-  const rvJahr = rvBeitragJahr(bruttoJahr, eingabe.westOst, eingabe.rvVersichert, params)
-  const alvJahr = alvBeitragJahr(bruttoJahr, params)
-  const kvResult = kvBeitragJahr(bruttoJahr, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
+  const rvJahr = rvBeitragJahr(svBasisJahr, eingabe.westOst, eingabe.rvVersichert, params)
+  const alvJahr = alvBeitragJahr(svBasisJahr, params)
+  const kvResult = kvBeitragJahr(svBasisJahr, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
   const pvResult = pvBeitragJahr(
-    bruttoJahr,
+    svBasisJahr,
     eingabe.kvGesetzlich,
     eingabe.pvKinderlos,
     eingabe.kinderfreibetraege,
     eingabe.pvSachsenZuschlag,
     params
   )
+
+  // Midijob: Ersparnis gegenüber voller SV ermitteln
+  if (midijobInfoObj) {
+    const rvFull = rvBeitragJahr(bruttoJahr, eingabe.westOst, eingabe.rvVersichert, params)
+    const alvFull = alvBeitragJahr(bruttoJahr, params)
+    const kvFull = kvBeitragJahr(bruttoJahr, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
+    const pvFull = pvBeitragJahr(bruttoJahr, eingabe.kvGesetzlich, eingabe.pvKinderlos, eingabe.kinderfreibetraege, eingabe.pvSachsenZuschlag, params)
+    midijobInfoObj.svReduktionJahr = Math.max(0, (rvFull + alvFull + kvFull.beitrag + pvFull.beitrag) - (rvJahr + alvJahr + kvResult.beitrag + pvResult.beitrag))
+  }
 
   // Vorsorgepauschale = AN-Anteile RV + KV + PV (nicht ALV!)
   // Bei privater KV: VKV × 12 (PAP VKV-Parameter) statt GKV-Anteil
@@ -697,6 +802,9 @@ export function berechneLohnsteuer(
     ergebnis: `${lstJahr.toFixed(2)} EUR (Jahres-LSt)`,
     papReferenz: 'PAP S. 12-13, § 32a EStG',
   })
+
+  // Minijob: AN-Lohnsteuer = 0 (Pauschalsteuer 2% ist AG-Last § 40a EStG)
+  if (isMinijob) lstJahr = 0
 
   // Kinderfreibetrag-Effekt für SolZ/KiSt: fiktive LSt mit Kinderfreibetrag
   const zvE_mitKfb = Math.max(0, zvE - kinderfreibetragGesamt)
@@ -828,7 +936,95 @@ export function berechneLohnsteuer(
   }
 
   // ============================================
-  // 8. Konvertiere zurück auf den LZZ
+  // 8. Abfindung / Fünftelregelung (§ 34 EStG, Excel SONSTENT + mehrjBez)
+  // ============================================
+  let abfindungErg: AbfindungErgebnis | undefined
+  const gesamtSonstEnt = (eingabe.abfindung ?? 0) + (eingabe.mehrjBezuege ?? 0)
+
+  if (gesamtSonstEnt > 0) {
+    const jre4a = eingabe.vJBrutto ?? bruttoJahr
+    const rvJre4a = rvBeitragJahr(jre4a, eingabe.westOst, eingabe.rvVersichert, params)
+    const kvJre4a = kvBeitragJahr(jre4a, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
+    const pvJre4a = pvBeitragJahr(jre4a, eingabe.kvGesetzlich, eingabe.pvKinderlos, eingabe.kinderfreibetraege, eingabe.pvSachsenZuschlag, params)
+    const vorsorgeA = rvJre4a + kvJre4a.beitrag + pvJre4a.beitrag + pkvVorsorge
+
+    const zvEBasisA = Math.max(0, jre4a - wp - sp - vorsorgeA - freibetragJahr - altBetrag)
+    const lstBasisA = steuerklasseAnpassung(zvEBasisA, eingabe.steuerklasse, params)
+
+    const fuenftel = gesamtSonstEnt / 5
+    const zvEFuenftelA = Math.max(0, zvEBasisA + fuenftel)
+    const lstFuenftelA = steuerklasseAnpassung(zvEFuenftelA, eingabe.steuerklasse, params)
+
+    const lstAbfindung = Math.max(0, lstFuenftelA - lstBasisA) * 5
+    const solzAbfindung = solidaritaetszuschlagJahr(lstAbfindung, eingabe.steuerklasse, params)
+    const kirchAbfindung = kirchensteuerJahr(lstAbfindung, kirchSatz)
+    const gesamtAbzA = lstAbfindung + solzAbfindung + kirchAbfindung
+
+    abfindungErg = {
+      betrag: gesamtSonstEnt,
+      jre4: jre4a,
+      lstBasis: lstBasisA,
+      lstFuenftelzusatz: Math.max(0, lstFuenftelA - lstBasisA),
+      lstAbfindung,
+      solz: solzAbfindung,
+      kirchensteuer: kirchAbfindung,
+      gesamtAbzuege: gesamtAbzA,
+      effektiverSteuersatz: gesamtSonstEnt > 0 ? gesamtAbzA / gesamtSonstEnt * 100 : 0,
+    }
+
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Fünftelregelung – Abfindung / Mehrjährige Bezüge',
+      beschreibung: `§ 34 EStG: LSt(JRE4 + SONSTENT/5) − LSt(JRE4), dann × 5`,
+      formel: `(LSt(${zvEBasisA.toFixed(0)} + ${fuenftel.toFixed(0)}) − LSt(${zvEBasisA.toFixed(0)})) × 5 = (${lstFuenftelA.toFixed(0)} − ${lstBasisA.toFixed(0)}) × 5`,
+      eingabe: `SONSTENT = ${gesamtSonstEnt.toFixed(2)} EUR, JRE4 = ${jre4a.toFixed(2)} EUR`,
+      ergebnis: `${lstAbfindung.toFixed(2)} EUR LSt + ${solzAbfindung.toFixed(2)} EUR SolZ`,
+      papReferenz: '§ 34 EStG, § 24 Nr. 1 EStG (E19/E20: mehrjBez/Abfindg)',
+    })
+  }
+
+  // ============================================
+  // 9. Grenzsteuersatz (analog AMLohnAbgabenLast() in Excel E46)
+  // ============================================
+  const gsDelta = 100 // EUR/Jahr (analog Zuwachs E32)
+  const bruttoPlus = bruttoJahr + gsDelta
+  const bruttoMtPlus = bruttoPlus / 12
+  let svBasisPlus = bruttoPlus
+  if (isMinijob || bruttoMtPlus <= params.minijobGrenzeMt) {
+    svBasisPlus = 0
+  } else if (isMidijob || (bruttoMtPlus > params.minijobGrenzeMt && bruttoMtPlus <= params.midijobGrenzeMt)) {
+    const G1j = params.minijobGrenzeMt * 12
+    const G2j = params.midijobGrenzeMt * 12
+    svBasisPlus = Math.max(0, params.midijobFaktorF * G1j + (G2j / (G2j - G1j)) * (bruttoPlus - G1j))
+  }
+
+  const rvPlus = rvBeitragJahr(svBasisPlus, eingabe.westOst, eingabe.rvVersichert, params)
+  const alvPlus = alvBeitragJahr(svBasisPlus, params)
+  const kvPlus = kvBeitragJahr(svBasisPlus, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
+  const pvPlus = pvBeitragJahr(svBasisPlus, eingabe.kvGesetzlich, eingabe.pvKinderlos, eingabe.kinderfreibetraege, eingabe.pvSachsenZuschlag, params)
+  const vorsorge_plus = rvPlus + kvPlus.beitrag + pvPlus.beitrag + pkvVorsorge
+
+  let zvE_plus = bruttoPlus - wp - sp - vorsorge_plus - freibetragJahr
+  if (eingabe.steuerklasse === 3) zvE_plus -= wp
+  if (altBetrag > 0) zvE_plus = Math.max(0, zvE_plus - altBetrag)
+  zvE_plus = Math.max(0, zvE_plus)
+
+  let lstPlus = steuerklasseAnpassung(zvE_plus, eingabe.steuerklasse, params)
+  if (faktor4 < 1.0) lstPlus = Math.floor(lstPlus * faktor4)
+  if (isMinijob) lstPlus = 0
+
+  const svBase = rvJahr + alvJahr + kvResult.beitrag + pvResult.beitrag
+  const svPlusTotal = rvPlus + alvPlus + kvPlus.beitrag + pvPlus.beitrag
+
+  const grenzsteuersatzInfo: GrenzsteuersatzInfo = {
+    delta: gsDelta,
+    grenzsteuersatzLst: Math.max(0, Math.min(100, (lstPlus - lstJahr) / gsDelta * 100)),
+    grenzsteuersatzSV: Math.max(0, Math.min(100, (svPlusTotal - svBase) / gsDelta * 100)),
+    grenzsteuersatzGesamt: Math.max(0, Math.min(100, (lstPlus - lstJahr + svPlusTotal - svBase) / gsDelta * 100)),
+  }
+
+  // ============================================
+  // 10. Konvertiere zurück auf den LZZ
   // ============================================
   const lst = vonJahr(lstJahr, eingabe.lohnZZ)
   const solz = vonJahr(solzJahr, eingabe.lohnZZ)
@@ -857,6 +1053,11 @@ export function berechneLohnsteuer(
     netto,
     belastungsquote,
     sonsteBezuege: sonsteBezuegErg,
+    abfindung: abfindungErg,
+    isMinijob,
+    isMidijob,
+    midijobInfo: midijobInfoObj,
+    grenzsteuersatz: grenzsteuersatzInfo,
     details: {
       zuVersteuerndesEinkommen: vonJahr(zvE, eingabe.lohnZZ),
       grundfreibetrag: vonJahr(params.grundfreibetrag, eingabe.lohnZZ),

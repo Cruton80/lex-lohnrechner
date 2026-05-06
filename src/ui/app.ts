@@ -157,6 +157,92 @@ Die Vorsorgepauschale vermindert das zu versteuernde Einkommen. Bei privater KV 
 Hinweis: Der PKV-Beitrag selbst erscheint NICHT als Lohnabzug (er wird privat bezahlt), reduziert aber die Steuerlast.`,
     beispiel: 'Monatsbeitrag 450 EUR → Vorsorgepauschale + 5.400 EUR/Jahr → ca. 1.800 EUR weniger Lohnsteuer',
   },
+  minijob: {
+    titel: 'Minijob – Geringfügige Beschäftigung',
+    paragraf: '§ 8 SGB IV, § 40a EStG – Geringfügigkeitsgrenze',
+    beschreibung: `Geringfügige Beschäftigung wenn Monatsentgelt ≤ 556 EUR (2025/2026).
+
+Steuerliche Behandlung:
+• AN zahlt keine Lohnsteuer
+• AG zahlt Pauschalsteuer 2 % auf Bruttolohn
+
+Sozialversicherung:
+• AN zahlt keine regulären SV-Beiträge
+• AG zahlt Pauschalbeiträge: RV 15 %, KV 13 %
+• Keine ALV (weder AG noch AN)
+• Keine PV-Pauschale für AG
+
+Sonderfall RV:
+• AN kann auf die RV-Befreiung verzichten und den Differenzbeitrag (3,6 %) selbst zahlen, um Rentenansprüche zu erwerben.
+
+Excel-Variable: gering (E34)`,
+    beispiel: 'Brutto 400 EUR/Monat: AG-Pauschalsteuer = 400 × 2% = 8 EUR; AG-RV = 400 × 15% = 60 EUR; AN-Netto = 400 EUR',
+  },
+  midijob: {
+    titel: 'Midijob / Übergangsbereich',
+    paragraf: '§ 20 Abs. 2 SGB IV – Übergangsbereichsregelung',
+    beschreibung: `Midijob wenn: 556 EUR < Monatsentgelt ≤ 2.000 EUR (seit 10/2022).
+
+Berechnung reduzierte AN-SV:
+• Beitragspflichtige Einnahme (BPE_AN):
+  BPE = F × G1 + (G2/(G2−G1)) × (AE−G1)
+  mit F ≈ 0,6846, G1 = 556 EUR, G2 = 2.000 EUR
+
+• AN zahlt SV-Beiträge nur auf BPE (nicht auf vollen Brutto)
+• AG zahlt weiterhin auf den vollen Bruttolohn
+• LSt wird weiterhin auf vollen Brutto berechnet!
+
+Vorteil: AN-SV schrittweise reduziert, von fast 0 % bei 556 EUR bis voller AN-Satz bei 2.000 EUR.
+
+Excel-Variable: gleit (E35)`,
+    beispiel: 'Brutto 1.000 EUR/Monat, F=0,6846: BPE = 0,6846×556 + (2000/1444)×(1000−556) = 380,24 + 615,91 = 996,15 EUR/Monat → minimal reduzierte SV',
+  },
+  abfindung: {
+    titel: 'Fünftelregelung – Abfindungen (§ 34 EStG)',
+    paragraf: '§ 34 Abs. 1 EStG, § 24 Nr. 1 EStG – Außerordentliche Einkünfte',
+    beschreibung: `Abfindungen und Entschädigungen (SONSTENT) werden nach der Fünftelregelung besteuert, um die Progressionswirkung abzumildern.
+
+Algorithmus:
+1. LSt_basis   = Tarif auf JRE4 (Jahresbrutto ohne Abfindung)
+2. LSt_fuenftel = Tarif auf JRE4 + Abfindung/5
+3. LSt_Abfindung = (LSt_fuenftel − LSt_basis) × 5
+
+JRE4: voraussichtliches Jahresbrutto (Feld "Voraussichtl. Jahresbrutto")
+
+Excel-Variable: Abfindg (E20) = SONSTENT`,
+    beispiel: 'Jahresbrutto 60.000 EUR, Abfindung 30.000 EUR, STKL I:\n  LSt(60.000) ≈ 15.200 EUR\n  LSt(60.000 + 6.000) ≈ 16.580 EUR\n  LSt-Abfindung = (16.580 − 15.200) × 5 = 6.900 EUR → eff. 23%',
+  },
+  mehrjbez: {
+    titel: 'Mehrjährige Bezüge (§ 34 Abs. 2 EStG)',
+    paragraf: '§ 34 Abs. 2 Nr. 4 EStG – Vergütungen für mehrjährige Tätigkeiten',
+    beschreibung: `Mehrjährige Bezüge (Vergütungen für eine Tätigkeit, die sich über mehr als 12 Monate erstreckt) werden ebenfalls nach der Fünftelregelung begünstigt besteuert.
+
+Bedingung (§ 34 Abs. 2 Nr. 4 EStG):
+• Tätigkeit dauerte mehr als 12 Monate
+• Vergütung wurde zusammengeballt in einem Jahr ausgezahlt
+
+Berechnung:
+Wie bei Abfindung – Fünftelregelung angewandt.
+Kombinierter SONSTENT = Abfindung + Mehrjährige Bezüge.
+
+Excel-Variable: mehrjBez (E19)`,
+  },
+  grenzsteuersatz: {
+    titel: 'Grenzsteuersatz (Marginalbelastung)',
+    paragraf: 'Analog AMLohnAbgabenLast() – Excel E46 (Zuwachs E32)',
+    beschreibung: `Der Grenzsteuersatz zeigt, wie viel Prozent vom nächsten Euro Bruttolohn als Steuern und Abgaben fließen.
+
+Berechnung:
+• LSt-Grenzsteuersatz: (LSt(Brutto + 100) − LSt(Brutto)) / 100 × 100%
+• SV-Grenzbelastung: (SV(Brutto + 100) − SV(Brutto)) / 100 × 100%
+• Gesamt: Summe beider
+
+Der Grenzsteuersatz ist stets ≥ Durchschnittsbelastung (Progression).
+In der SV gibt es Sprünge an Beitragsbemessungsgrenzen.
+
+Excel-Variable: Zuwachs (E32), AMLohnAbgabenLast() (E46)`,
+    beispiel: 'Brutto 60.000 EUR/Jahr, STKL I: LSt-Grenzsteuersatz ≈ 42 %, SV-Grenzbelastung ≈ 0 % (über BBG), Gesamt ≈ 42 %',
+  },
   sonstbez: {
     titel: 'Sonstige Bezüge (PAP S. 14-15)',
     paragraf: '§ 39b Abs. 3 EStG – Vergleichsrechnung',
@@ -204,6 +290,9 @@ function getEingabe(): LohnsteuerEingabe {
   const sonsteBezVal = parseFloat($i('sonsteBezuege').value)
   const faktor4Val = parseFloat($i('faktor4').value)
   const pkvMonatVal = parseFloat($i('kvMonatPKV').value)
+  const abfindungVal = parseFloat($i('abfindung').value)
+  const mehrjBezVal = parseFloat($i('mehrjBezuege').value)
+  const bform = $s('beschaeftigungsform').value
 
   return {
     bruttolohn: parseFloat($i('bruttolohn').value) || 0,
@@ -224,6 +313,10 @@ function getEingabe(): LohnsteuerEingabe {
     sonsteBezuege: !isNaN(sonsteBezVal) && sonsteBezVal > 0 ? sonsteBezVal : undefined,
     faktor4: !isNaN(faktor4Val) && faktor4Val > 0 && faktor4Val < 1 ? faktor4Val : undefined,
     kvMonatsbeitragPKV: !isNaN(pkvMonatVal) && pkvMonatVal > 0 && !kvGesetzlich ? pkvMonatVal : undefined,
+    minijob: bform === 'minijob' ? true : undefined,
+    gleitzone: bform === 'midijob' ? true : undefined,
+    abfindung: !isNaN(abfindungVal) && abfindungVal > 0 ? abfindungVal : undefined,
+    mehrjBezuege: !isNaN(mehrjBezVal) && mehrjBezVal > 0 ? mehrjBezVal : undefined,
   }
 }
 
@@ -375,6 +468,66 @@ function zeigeErgebnis(erg: LohnsteuerErgebnis, eingabe: LohnsteuerEingabe, audi
       setCell('r-sonstb-netto', formatEUR(sb.betrag - sb.gesamtAbzuege) + ' EUR')
     } else {
       rowSonstb.style.display = 'none'
+    }
+  }
+
+  // Grenzsteuersatz
+  const gs = erg.grenzsteuersatz
+  const rowGrenz = document.getElementById('row-grenzsteuersatz') as HTMLElement | null
+  if (rowGrenz) {
+    $('r-grenz-lst').textContent = `LSt ${formatProzent(gs.grenzsteuersatzLst)}`
+    $('r-grenz-gesamt').textContent = `Gesamt ${formatProzent(gs.grenzsteuersatzGesamt)}`
+  }
+
+  // Minijob
+  const secMinijob = document.getElementById('section-minijob') as HTMLElement | null
+  if (secMinijob) {
+    if (erg.isMinijob) {
+      secMinijob.style.display = ''
+      const brutto = eingabe.bruttolohn
+      const setMini = (id: string, val: string) => { const el = document.getElementById(id); if (el) el.textContent = val }
+      setMini('r-minijob-lst-eur', `${formatEUR(brutto * 0.02)} EUR`)
+      setMini('r-minijob-rv-eur', `${formatEUR(brutto * 0.15)} EUR`)
+      setMini('r-minijob-kv-eur', `${formatEUR(brutto * 0.13)} EUR`)
+    } else {
+      secMinijob.style.display = 'none'
+    }
+  }
+
+  // Midijob
+  const secMidijob = document.getElementById('section-midijob') as HTMLElement | null
+  if (secMidijob) {
+    if (erg.isMidijob && erg.midijobInfo) {
+      secMidijob.style.display = ''
+      const mi = erg.midijobInfo
+      const setMi = (id: string, val: string) => { const el = document.getElementById(id); if (el) el.textContent = val }
+      setMi('r-midijob-brutto', `${formatEUR(mi.bruttolohnMt)} EUR/Monat`)
+      setMi('r-midijob-bpe', `${formatEUR(mi.bpeJahr)} EUR/Jahr`)
+      setMi('r-midijob-ersparnis', `${formatEUR(mi.svReduktionJahr)} EUR/Jahr`)
+    } else {
+      secMidijob.style.display = 'none'
+    }
+  }
+
+  // Abfindung
+  const secAbf = document.getElementById('section-abfindung') as HTMLElement | null
+  if (secAbf) {
+    if (erg.abfindung) {
+      const af = erg.abfindung
+      secAbf.style.display = ''
+      const setAbf = (id: string, val: string) => { const el = document.getElementById(id); if (el) el.textContent = val }
+      setAbf('r-abf-betrag', `${formatEUR(af.betrag)} EUR`)
+      setAbf('r-abf-jre4', `JRE4: ${formatEUR(af.jre4)} EUR`)
+      setAbf('r-abf-lst-basis', `${formatEUR(af.lstBasis)} EUR`)
+      setAbf('r-abf-lst-fuenftel', `${formatEUR(af.lstFuenftelzusatz)} EUR`)
+      setAbf('r-abf-lst', `${formatEUR(af.lstAbfindung)} EUR`)
+      setAbf('r-abf-solz', `${formatEUR(af.solz)} EUR`)
+      setAbf('r-abf-kirch', `${formatEUR(af.kirchensteuer)} EUR`)
+      setAbf('r-abf-gesamt', `${formatEUR(af.gesamtAbzuege)} EUR`)
+      setAbf('r-abf-effektiv', `effektiv: ${formatProzent(af.effektiverSteuersatz)}`)
+      setAbf('r-abf-netto', `${formatEUR(af.betrag - af.gesamtAbzuege)} EUR`)
+    } else {
+      secAbf.style.display = 'none'
     }
   }
 
@@ -720,6 +873,7 @@ function setupEventListeners(): void {
     'rvVersichert', 'kvGesetzlich', 'kvZusatz', 'pvKinderlos', 'pvSachsen',
     'westOst', 'kirchensteuer',
     'vJBrutto', 'sonsteBezuege', 'faktor4', 'kvMonatPKV',
+    'beschaeftigungsform', 'abfindung', 'mehrjBezuege',
   ]
 
   for (const id of fields) {
@@ -765,6 +919,9 @@ function setupEventListeners(): void {
   $s('pvSachsen').value = '0'
   $s('westOst').value = 'west'
   $s('kirchensteuer').value = '0'
+  $s('beschaeftigungsform').value = 'normal'
+  $i('abfindung').value = ''
+  $i('mehrjBezuege').value = ''
   berechne()
 }
 

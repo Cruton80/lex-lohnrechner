@@ -783,7 +783,25 @@
               </div>
             </div>
 
-            <h3>Einmalzahlungen (§ 39b Abs. 3 EStG)</h3>
+            <h3>Beschäftigungsform</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="beschaeftigungsform">
+                <label>Beschäftigungsform <span class="pap-badge" data-pap="minijob">§ 8/20 SGB IV</span></label>
+                <select id="beschaeftigungsform">
+                  <option value="normal" selected>Normale Anstellung</option>
+                  <option value="minijob">Minijob (≤ 556 EUR/Monat)</option>
+                  <option value="midijob">Midijob / Übergangsbereich (bis 2.000 EUR/Monat)</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>&nbsp;</label>
+                <div class="info-box" style="font-size: 11px; margin-top: 0">
+                  Auto-Erkennung aus Bruttolohn wenn "Normale Anstellung"
+                </div>
+              </div>
+            </div>
+
+            <h3>Einmalzahlungen (§ 39b / § 34 EStG)</h3>
             <div class="form-grid-2">
               <div class="form-row" data-field="sonsteBezuege">
                 <label>Sonstige Bezüge (EUR/Jahr) <span class="pap-badge" data-pap="sonstbez">PAP S.14</span></label>
@@ -792,6 +810,16 @@
               <div class="form-row" data-field="vJBrutto">
                 <label>Voraussichtl. Jahresbrutto (EUR)</label>
                 <input type="number" id="vJBrutto" step="0.01" min="0" placeholder="Leer = aus LZZ hochrechnen" />
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="abfindung">
+                <label>Abfindung / Entschädigung (EUR/Jahr) <span class="pap-badge" data-pap="abfindung">§ 34 EStG</span></label>
+                <input type="number" id="abfindung" step="0.01" min="0" placeholder="z.B. 30000 (SONSTENT)" />
+              </div>
+              <div class="form-row" data-field="mehrjBezuege">
+                <label>Mehrjährige Bezüge (EUR/Jahr) <span class="pap-badge" data-pap="mehrjbez">§ 34 Abs. 2</span></label>
+                <input type="number" id="mehrjBezuege" step="0.01" min="0" placeholder="z.B. 10000 (mehrjBez)" />
               </div>
             </div>
 
@@ -875,8 +903,69 @@
                   <td class="value" id="r-quote">-</td>
                   <td></td>
                 </tr>
+                <tr id="row-grenzsteuersatz">
+                  <td>Grenzsteuersatz <span class="pap-badge" data-pap="grenzsteuersatz">Marginal</span></td>
+                  <td class="value" id="r-grenz-lst" style="font-size: 12px; color: var(--text-muted)">-</td>
+                  <td class="value-secondary" id="r-grenz-gesamt">-</td>
+                </tr>
               </tbody>
             </table>
+
+            <!-- Minijob Info (wenn Minijob erkannt) -->
+            <div id="section-minijob" class="sonstbez-block" style="display: none">
+              <div class="sonstbez-header">
+                Minijob – Geringfügige Beschäftigung
+                <span class="pap-badge" data-pap="minijob" style="margin-left: 8px">§ 40a EStG</span>
+              </div>
+              <p class="sonstbez-desc">AN-Lohnsteuer und AN-SV = 0. Pauschallasten trägt der Arbeitgeber.</p>
+              <table class="results">
+                <tbody>
+                  <tr>
+                    <td>Pauschalsteuer LSt (AG-Last)</td>
+                    <td class="value" id="r-minijob-lst">2 %</td>
+                    <td class="value-secondary" id="r-minijob-lst-eur">-</td>
+                  </tr>
+                  <tr>
+                    <td>Pauschalbeitrag RV (AG-Last)</td>
+                    <td class="value">15 %</td>
+                    <td class="value-secondary" id="r-minijob-rv-eur">-</td>
+                  </tr>
+                  <tr>
+                    <td>Pauschalbeitrag KV (AG-Last)</td>
+                    <td class="value">13 %</td>
+                    <td class="value-secondary" id="r-minijob-kv-eur">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Midijob Info -->
+            <div id="section-midijob" class="sonstbez-block" style="display: none">
+              <div class="sonstbez-header">
+                Midijob / Übergangsbereich – Reduzierte AN-SV
+                <span class="pap-badge" data-pap="midijob" style="margin-left: 8px">§ 20 SGB IV</span>
+              </div>
+              <p class="sonstbez-desc">Beitragspflichtige Einnahme (BPE) für AN ist reduziert. Jahresbeträge.</p>
+              <table class="results">
+                <tbody>
+                  <tr>
+                    <td>Tatsächliches Monatsentgelt</td>
+                    <td class="value" id="r-midijob-brutto">-</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>Beitragspflichtige Einnahme AN (Jahr)</td>
+                    <td class="value" id="r-midijob-bpe">-</td>
+                    <td></td>
+                  </tr>
+                  <tr class="summary">
+                    <td>AN-SV-Ersparnis (Jahr)</td>
+                    <td class="value" id="r-midijob-ersparnis">-</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <!-- Sonstige Bezüge Ergebnis (nur wenn eingegeben) -->
             <div id="section-sonstbez" class="sonstbez-block" style="display: none">
@@ -915,6 +1004,59 @@
                   <tr class="netto">
                     <td>Netto-Auszahlung SONSTB</td>
                     <td class="value" id="r-sonstb-netto">-</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Abfindung / Fünftelregelung Ergebnis -->
+            <div id="section-abfindung" class="sonstbez-block" style="display: none">
+              <div class="sonstbez-header">
+                Abfindung / Mehrjährige Bezüge – Fünftelregelung
+                <span class="pap-badge" data-pap="abfindung" style="margin-left: 8px">§ 34 EStG</span>
+              </div>
+              <p class="sonstbez-desc">Außerordentliche Einkünfte – Jahresbeträge</p>
+              <table class="results">
+                <tbody>
+                  <tr>
+                    <td>Abfindungsbetrag (SONSTENT)</td>
+                    <td class="value" id="r-abf-betrag">-</td>
+                    <td class="value-secondary" id="r-abf-jre4" style="font-size: 11px; color: var(--text-muted)">JRE4: -</td>
+                  </tr>
+                  <tr>
+                    <td>LSt-Basis ohne Abfindung</td>
+                    <td class="value" id="r-abf-lst-basis">-</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>LSt-Zuwachs (+1/5 Abfindung)</td>
+                    <td class="value" id="r-abf-lst-fuenftel">-</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>Lohnsteuer auf Abfindung (×5) <span class="pap-badge" data-pap="abfindung">§ 34</span></td>
+                    <td class="value" id="r-abf-lst">-</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>Solidaritätszuschlag auf Abfindung</td>
+                    <td class="value" id="r-abf-solz">-</td>
+                    <td></td>
+                  </tr>
+                  <tr id="row-abf-kirch">
+                    <td>Kirchensteuer auf Abfindung</td>
+                    <td class="value" id="r-abf-kirch">-</td>
+                    <td></td>
+                  </tr>
+                  <tr class="summary">
+                    <td>Steuerabzug gesamt</td>
+                    <td class="value" id="r-abf-gesamt">-</td>
+                    <td class="value-secondary" id="r-abf-effektiv">effektiv: -</td>
+                  </tr>
+                  <tr class="netto">
+                    <td>Netto-Abfindung</td>
+                    <td class="value" id="r-abf-netto">-</td>
                     <td></td>
                   </tr>
                 </tbody>
