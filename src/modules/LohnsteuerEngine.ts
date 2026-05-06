@@ -27,6 +27,20 @@ export interface LohnsteuerEingabe {
   westOst: Region
   kirchensteuer: boolean
   kirchensteuerSatz?: number  // 8 oder 9 Prozent (default: 9)
+  // PAP § 39b: Erweiterte Parameter
+  vJBrutto?: number        // Voraussichtliches Jahresbrutto (JRE4) – wenn abweichend vom hochgerechneten LZZ
+  sonsteBezuege?: number   // Sonstige Bezüge Jahresbetrag (SONSTB): Weihnachtsgeld, Prämien etc.
+}
+
+export interface SonsteBezuegErgebnis {
+  betrag: number            // SONSTB Betrag (Jahreswert)
+  jre4: number              // JRE4 Basis (Jahresbrutto ohne SONSTB)
+  lstBasis: number          // LSt auf JRE4 allein (Vergleichsbasis)
+  lstMitSonstb: number      // LSt auf JRE4 + SONSTB
+  lohnsteuer: number        // Differenz = LSt auf SONSTB
+  solz: number              // SolZ auf SONSTB
+  kirchensteuer: number     // KiSt auf SONSTB
+  gesamtAbzuege: number     // Summe Steuer-Abzüge auf SONSTB
 }
 
 export interface LohnsteuerErgebnis {
@@ -35,7 +49,7 @@ export interface LohnsteuerErgebnis {
   lohnZZ: LohnZZ
   zeitraum: string
 
-  // Steuern
+  // Steuern (laufendes Gehalt)
   lohnsteuer: number
   solidaritaetszuschlag: number
   kirchensteuer: number
@@ -65,6 +79,9 @@ export interface LohnsteuerErgebnis {
     alvSatzAN: number    // %
     tarifZone: 'A' | 'B' | 'C' | 'D'
   }
+
+  // Sonstige Bezüge (Einmalzahlungen, nur wenn eingegeben)
+  sonsteBezuege?: SonsteBezuegErgebnis
 
   // Audit-Schritte
   schritte: BerechnungsSchritt[]
@@ -256,6 +273,58 @@ export function einkommensteuerJahr2026(zvE: number, params: ParameterJahr): { s
 }
 
 /**
+ * Berechnet die Einkommensteuer (Jahreswert) nach § 32a EStG für 2025
+ * Koeffizienten aus Stetigkeitsbedingungen abgeleitet (PAP_2025: GFB=11460, zoneB_max=16305, zoneC_max=62810)
+ *
+ * Zone A: 0 – 11.460 EUR        → 0 EUR
+ * Zone B: 11.461 – 16.305 EUR   → progressiv ab 14%  y = (zvE − 11460) / 10000
+ * Zone C: 16.306 – 62.810 EUR   → progressiv 23–42%  z = (zvE − 16305) / 10000
+ * Zone D: 62.811 – 277.825 EUR  → 42%
+ * Zone E: > 277.825 EUR         → 45%
+ *
+ * Herleitung Zone-C-Koeffizienten:
+ *   y_Bmax = (16305 − 11460) / 10000 = 0,4845
+ *   K = floor((922,98 × 0,4845 + 1400) × 0,4845) = 894   (Steuer am Ende Zone B)
+ *   d = 2 × 922,98 × 0,4845 + 1400 = 2294,37             (Grenzsteuersatz-Koeff.)
+ *   z_max = (62810 − 16305) / 10000 = 4,6505
+ *   c = (4200 − 2294,37) / (2 × 4,6505) = 204,88         (Progressionskoeff.)
+ */
+export function einkommensteuerJahr2025(zvE: number, params: ParameterJahr): { steuer: number; zone: 'A' | 'B' | 'C' | 'D' } {
+  if (zvE <= 0 || zvE <= params.grundfreibetrag) return { steuer: 0, zone: 'A' }
+
+  // Zone B: GFB+1 – 16.305 EUR
+  if (zvE <= params.zoneB_max) {
+    const y = (zvE - params.grundfreibetrag) / 10000
+    return { steuer: Math.floor((922.98 * y + 1400) * y), zone: 'B' }
+  }
+
+  // Zone C: 16.306 – 62.810 EUR
+  if (zvE <= params.zoneC_max) {
+    const z = (zvE - params.zoneB_max) / 10000
+    return { steuer: Math.floor((204.88 * z + 2294.37) * z + 894), zone: 'C' }
+  }
+
+  // Zone D: 62.811 – 277.825 EUR (42%)
+  // B = 0,42 × 62810 − 15995 = 10385,2
+  if (zvE <= 277825) {
+    return { steuer: Math.floor(0.42 * zvE - 10385.2), zone: 'D' }
+  }
+
+  // Zone E: > 277.825 EUR (45%)
+  // C = 0,45 × 277826 − 106301 = 18720,7
+  return { steuer: Math.floor(0.45 * zvE - 18720.7), zone: 'D' }
+}
+
+/**
+ * Jahresdispatcher: Wählt die korrekte Tarifformel anhand params.jahr.
+ * Fällt bei unbekanntem Jahr auf 2026 zurück.
+ */
+export function berechneTarif(zvE: number, params: ParameterJahr): { steuer: number; zone: 'A' | 'B' | 'C' | 'D' } {
+  if (params.jahr === 2025) return einkommensteuerJahr2025(zvE, params)
+  return einkommensteuerJahr2026(zvE, params)
+}
+
+/**
  * Steuerklassen-Faktor (vereinfacht):
  * STKL I: Standard
  * STKL II: Standard + Alleinerziehend-Entlastung 4.260 EUR/Jahr
@@ -268,29 +337,25 @@ export function steuerklasseAnpassung(zvE: number, stkl: Steuerklasse, params: P
   switch (stkl) {
     case 1:
     case 4:
-      // Normaler Tarif
-      return einkommensteuerJahr2026(zvE, params).steuer
+      return berechneTarif(zvE, params).steuer
 
     case 2:
-      // Alleinerziehend: 4.260 EUR Entlastungsbetrag (PAP 2026)
-      return einkommensteuerJahr2026(Math.max(0, zvE - 4260), params).steuer
+      // Alleinerziehend: 4.260 EUR Entlastungsbetrag
+      return berechneTarif(Math.max(0, zvE - 4260), params).steuer
 
     case 3: {
       // Splitting-Tarif: Steuer auf zvE/2, dann × 2
-      const halbeSteuer = einkommensteuerJahr2026(zvE / 2, params).steuer
+      const halbeSteuer = berechneTarif(zvE / 2, params).steuer
       return Math.floor(halbeSteuer * 2)
     }
 
     case 5:
-    case 6: {
+    case 6:
       // STKL V/VI: kein Grundfreibetrag (GFB "gehört" dem STKL-III-Partner bzw. entfällt)
-      // Korrekte Annäherung: zvE um GFB verschieben, sodass die Steuer ab dem ersten EUR greift
-      // WP/SP wurden bereits abgezogen (geringe Ungenauigkeit, praktisch vernachlässigbar)
-      return einkommensteuerJahr2026(zvE + params.grundfreibetrag, params).steuer
-    }
+      return berechneTarif(zvE + params.grundfreibetrag, params).steuer
 
     default:
-      return einkommensteuerJahr2026(zvE, params).steuer
+      return berechneTarif(zvE, params).steuer
   }
 }
 
@@ -493,7 +558,7 @@ export function berechneLohnsteuer(
   // 4. Lohnsteuer berechnen
   // ============================================
   const lstJahr = steuerklasseAnpassung(zvE, eingabe.steuerklasse, params)
-  const tarifInfo = einkommensteuerJahr2026(zvE, params)
+  const tarifInfo = berechneTarif(zvE, params)
 
   schritte.push({
     nr: ++schrittNr,
@@ -586,7 +651,56 @@ export function berechneLohnsteuer(
   })
 
   // ============================================
-  // 7. Konvertiere zurück auf den LZZ
+  // 7. Sonstige Bezüge (Vergleichsrechnung § 39b Abs. 3 EStG)
+  // ============================================
+  let sonsteBezuegErg: SonsteBezuegErgebnis | undefined
+
+  if (eingabe.sonsteBezuege && eingabe.sonsteBezuege > 0) {
+    // JRE4: voraussichtliches Jahresbrutto (ohne SONSTB). Fällt auf hochgerechnetes LZZ-Brutto zurück.
+    const jre4 = eingabe.vJBrutto ?? bruttoJahr
+
+    // Vorsorgepauschale auf JRE4-Basis (SONSTB erhöht die SV-Beiträge nicht, da BBG-Begrenzung beachtet)
+    const rvJre4 = rvBeitragJahr(jre4, eingabe.westOst, eingabe.rvVersichert, params)
+    const kvJre4 = kvBeitragJahr(jre4, eingabe.kvGesetzlich, eingabe.kvZusatzbeitragProzent, params)
+    const pvJre4 = pvBeitragJahr(jre4, eingabe.kvGesetzlich, eingabe.pvKinderlos, eingabe.kinderfreibetraege, eingabe.pvSachsenZuschlag, params)
+    const vorsorge_jre4 = rvJre4 + kvJre4.beitrag + pvJre4.beitrag
+
+    // zvE ohne SONSTB (Vergleichsbasis)
+    const zvE_basis = Math.max(0, jre4 - wp - sp - vorsorge_jre4 - freibetragJahr)
+    const lst_basis = steuerklasseAnpassung(zvE_basis, eingabe.steuerklasse, params)
+
+    // zvE mit SONSTB (gleiche Vorsorge — SONSTB ändert die SV-Beiträge nicht)
+    const zvE_mitSonstb = Math.max(0, jre4 + eingabe.sonsteBezuege - wp - sp - vorsorge_jre4 - freibetragJahr)
+    const lst_mitSonstb = steuerklasseAnpassung(zvE_mitSonstb, eingabe.steuerklasse, params)
+
+    const lstSonstb = Math.max(0, lst_mitSonstb - lst_basis)
+    const solzSonstb = solidaritaetszuschlagJahr(lstSonstb, eingabe.steuerklasse, params)
+    const kirchSonstb = kirchensteuerJahr(lstSonstb, kirchSatz)
+
+    sonsteBezuegErg = {
+      betrag: eingabe.sonsteBezuege,
+      jre4,
+      lstBasis: lst_basis,
+      lstMitSonstb: lst_mitSonstb,
+      lohnsteuer: lstSonstb,
+      solz: solzSonstb,
+      kirchensteuer: kirchSonstb,
+      gesamtAbzuege: lstSonstb + solzSonstb + kirchSonstb,
+    }
+
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Sonstige Bezüge – Vergleichsrechnung',
+      beschreibung: `Differenzsteuer auf SONSTB ${eingabe.sonsteBezuege.toFixed(2)} EUR nach § 39b Abs. 3 EStG`,
+      formel: `LSt(JRE4 + SONSTB) − LSt(JRE4) = ${lst_mitSonstb.toFixed(0)} − ${lst_basis.toFixed(0)}`,
+      eingabe: `JRE4 = ${jre4.toFixed(2)}, SONSTB = ${eingabe.sonsteBezuege.toFixed(2)} EUR`,
+      ergebnis: `${lstSonstb.toFixed(2)} EUR LSt + ${solzSonstb.toFixed(2)} EUR SolZ`,
+      papReferenz: 'PAP S. 14-15, § 39b Abs. 3 EStG',
+    })
+  }
+
+  // ============================================
+  // 8. Konvertiere zurück auf den LZZ
   // ============================================
   const lst = vonJahr(lstJahr, eingabe.lohnZZ)
   const solz = vonJahr(solzJahr, eingabe.lohnZZ)
@@ -614,6 +728,7 @@ export function berechneLohnsteuer(
     gesamtAbzuege,
     netto,
     belastungsquote,
+    sonsteBezuege: sonsteBezuegErg,
     details: {
       zuVersteuerndesEinkommen: vonJahr(zvE, eingabe.lohnZZ),
       grundfreibetrag: vonJahr(params.grundfreibetrag, eingabe.lohnZZ),

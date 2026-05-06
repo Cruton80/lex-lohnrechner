@@ -17,6 +17,7 @@ import {
   PAP_2027,
   type LohnsteuerEingabe,
   type LohnsteuerErgebnis,
+  type SonsteBezuegErgebnis,
   type ParameterJahr,
   type LohnZZ,
   type Steuerklasse,
@@ -130,6 +131,23 @@ Zuschläge/Abschläge AN:
 
 BBG = wie KV (69.750 EUR/Jahr)`,
   },
+  sonstbez: {
+    titel: 'Sonstige Bezüge (PAP S. 14-15)',
+    paragraf: '§ 39b Abs. 3 EStG – Vergleichsrechnung',
+    beschreibung: `Einmalzahlungen wie Weihnachtsgeld, Urlaubsgeld und Prämien (SONSTB) werden nach der Vergleichsrechnung besteuert.
+
+Algorithmus:
+1. Basis-LSt  = Tarif auf JRE4 (Jahresbrutto ohne SONSTB)
+2. Erhöhte LSt = Tarif auf JRE4 + SONSTB
+3. SONSTB-LSt  = Erhöhte LSt − Basis-LSt
+
+JRE4 (voraussichtliches Jahresbrutto):
+• Eingabe: Feld "Voraussichtl. Jahresbrutto"
+• Fallback: hochgerechnetes LZZ-Brutto (z.B. Monatsbrutto × 12)
+
+Vorsorgepauschale (RV + KV + PV) wird nur auf JRE4 berechnet, nicht auf SONSTB. Das Ergebnis ist der einmalige Steuerabzug für die gesamte Einmalzahlung.`,
+    beispiel: 'Monatsbrutto 5.000 EUR, Weihnachtsgeld 5.000 EUR, STKL I:\n  Basis-LSt auf 60.000 EUR, dann Erhöhung um 5.000 EUR → Differenz = LSt auf Weihnachtsgeld',
+  },
 }
 
 // ============================================================================
@@ -156,6 +174,9 @@ function getEingabe(): LohnsteuerEingabe {
   const kvGesetzlich = $s('kvGesetzlich').value === '1'
   const kirchSatz = parseInt($s('kirchensteuer').value || '0')
 
+  const vJBruttoVal = parseFloat($i('vJBrutto').value)
+  const sonsteBezVal = parseFloat($i('sonsteBezuege').value)
+
   return {
     bruttolohn: parseFloat($i('bruttolohn').value) || 0,
     lohnZZ: parseInt($s('lohnZZ').value) as LohnZZ,
@@ -171,6 +192,8 @@ function getEingabe(): LohnsteuerEingabe {
     westOst: $s('westOst').value as 'west' | 'ost',
     kirchensteuer: kirchSatz > 0,
     kirchensteuerSatz: kirchSatz > 0 ? kirchSatz : undefined,
+    vJBrutto: !isNaN(vJBruttoVal) && vJBruttoVal > 0 ? vJBruttoVal : undefined,
+    sonsteBezuege: !isNaN(sonsteBezVal) && sonsteBezVal > 0 ? sonsteBezVal : undefined,
   }
 }
 
@@ -302,6 +325,28 @@ function zeigeErgebnis(erg: LohnsteuerErgebnis, eingabe: LohnsteuerEingabe, audi
   $('r-netto-y').textContent = altWert(erg.netto)
 
   $('r-quote').textContent = formatProzent(erg.belastungsquote)
+
+  // Sonstige Bezüge (Einmalzahlungen)
+  const rowSonstb = document.getElementById('section-sonstbez') as HTMLElement | null
+  if (rowSonstb) {
+    if (erg.sonsteBezuege) {
+      const sb = erg.sonsteBezuege
+      rowSonstb.style.display = ''
+      const setCell = (id: string, val: string) => {
+        const el = document.getElementById(id)
+        if (el) el.textContent = val
+      }
+      setCell('r-sonstb-betrag', formatEUR(sb.betrag) + ' EUR')
+      setCell('r-sonstb-jre4', formatEUR(sb.jre4) + ' EUR')
+      setCell('r-sonstb-lst', formatEUR(sb.lohnsteuer) + ' EUR')
+      setCell('r-sonstb-solz', formatEUR(sb.solz) + ' EUR')
+      setCell('r-sonstb-kirch', formatEUR(sb.kirchensteuer) + ' EUR')
+      setCell('r-sonstb-gesamt', formatEUR(sb.gesamtAbzuege) + ' EUR')
+      setCell('r-sonstb-netto', formatEUR(sb.betrag - sb.gesamtAbzuege) + ' EUR')
+    } else {
+      rowSonstb.style.display = 'none'
+    }
+  }
 
   // Audit-ID
   $('audit-id').textContent = auditId

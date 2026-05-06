@@ -654,6 +654,18 @@
               </div>
             </div>
 
+            <h3>Einmalzahlungen (§ 39b Abs. 3 EStG)</h3>
+            <div class="form-grid-2">
+              <div class="form-row" data-field="sonsteBezuege">
+                <label>Sonstige Bezüge (EUR/Jahr) <span class="pap-badge" data-pap="sonstbez">PAP S.14</span></label>
+                <input type="number" id="sonsteBezuege" step="0.01" min="0" placeholder="z.B. 5000 (Weihnachtsgeld)" />
+              </div>
+              <div class="form-row" data-field="vJBrutto">
+                <label>Voraussichtl. Jahresbrutto (EUR)</label>
+                <input type="number" id="vJBrutto" step="0.01" min="0" placeholder="Leer = aus LZZ hochrechnen" />
+              </div>
+            </div>
+
             <div id="conflicts-container"></div>
           </div>
 
@@ -745,6 +757,48 @@
                 </tr>
               </tbody>
             </table>
+
+            <!-- Sonstige Bezüge Ergebnis (nur wenn eingegeben) -->
+            <div id="section-sonstbez" style="display: none">
+              <h3 style="margin-top: 12px">Einmalzahlung – Steuerbelastung</h3>
+              <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px">
+                Vergleichsrechnung § 39b Abs. 3 EStG · Jahresbeträge
+              </p>
+              <table class="results">
+                <tbody>
+                  <tr>
+                    <td>Sonstige Bezüge (SONSTB)</td>
+                    <td class="value" id="r-sonstb-betrag">-</td>
+                    <td class="value-secondary" id="r-sonstb-jre4" style="font-size: 11px; color: var(--text-muted)">JRE4: -</td>
+                  </tr>
+                  <tr>
+                    <td>Lohnsteuer auf SONSTB <span class="pap-badge" data-pap="sonstbez">PAP S.14</span></td>
+                    <td class="value" id="r-sonstb-lst">-</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>Solidaritätszuschlag auf SONSTB</td>
+                    <td class="value" id="r-sonstb-solz">-</td>
+                    <td></td>
+                  </tr>
+                  <tr id="row-sonstb-kirch">
+                    <td>Kirchensteuer auf SONSTB</td>
+                    <td class="value" id="r-sonstb-kirch">-</td>
+                    <td></td>
+                  </tr>
+                  <tr class="summary">
+                    <td>Steuerabzug gesamt</td>
+                    <td class="value" id="r-sonstb-gesamt">-</td>
+                    <td></td>
+                  </tr>
+                  <tr class="netto">
+                    <td>Netto-Auszahlung SONSTB</td>
+                    <td class="value" id="r-sonstb-netto">-</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <div class="info-box">
               <strong>Audit-ID:</strong> <code id="audit-id">-</code> ·
