@@ -30,6 +30,9 @@ export interface LohnsteuerEingabe {
   // PAP § 39b: Erweiterte Parameter
   vJBrutto?: number        // Voraussichtliches Jahresbrutto (JRE4) – wenn abweichend vom hochgerechneten LZZ
   sonsteBezuege?: number   // Sonstige Bezüge Jahresbetrag (SONSTB): Weihnachtsgeld, Prämien etc.
+  // Stage 2: zusätzliche PAP-Parameter
+  faktor4?: number         // Faktor STKL IV (F, 0 < F ≤ 1,0 — nur relevant bei Steuerklasse IV)
+  kvMonatsbeitragPKV?: number  // KV+PV Monatsbeitrag (VKV) bei privater Krankenversicherung
 }
 
 export interface SonsteBezuegErgebnis {
@@ -78,6 +81,9 @@ export interface LohnsteuerErgebnis {
     rvSatzAN: number     // %
     alvSatzAN: number    // %
     tarifZone: 'A' | 'B' | 'C' | 'D'
+    altersentlastungsbetrag: number   // 0 wenn nicht zutreffend
+    pkvVorsorgepauschale: number      // 0 bei gesetzlicher KV
+    faktor4Angewandt: number          // 1.0 wenn kein Faktor
   }
 
   // Sonstige Bezüge (Einmalzahlungen, nur wenn eingegeben)
@@ -177,6 +183,70 @@ export const PAP_2027: ParameterJahr = {
   ...PAP_2026,
   jahr: 2027,
   grundfreibetrag: 11604, // Vorlage
+}
+
+// ============================================================================
+// ALTERSENTLASTUNGSBETRAG (§ 24a EStG)
+// ============================================================================
+
+// Anlage 2 PAP: Prozentsatz und Höchstbetrag je Kohorte (Jahr des 64. Geburtstags)
+const ALT_ENTLASTUNG: Record<number, { prozent: number; max: number }> = {
+  2005: { prozent: 40.0, max: 1900 },
+  2006: { prozent: 38.4, max: 1824 },
+  2007: { prozent: 36.8, max: 1748 },
+  2008: { prozent: 35.2, max: 1672 },
+  2009: { prozent: 33.6, max: 1596 },
+  2010: { prozent: 32.0, max: 1520 },
+  2011: { prozent: 30.4, max: 1444 },
+  2012: { prozent: 28.8, max: 1368 },
+  2013: { prozent: 27.2, max: 1292 },
+  2014: { prozent: 25.6, max: 1216 },
+  2015: { prozent: 24.0, max: 1140 },
+  2016: { prozent: 22.4, max: 1064 },
+  2017: { prozent: 20.8, max:  988 },
+  2018: { prozent: 19.2, max:  912 },
+  2019: { prozent: 17.6, max:  836 },
+  2020: { prozent: 16.0, max:  760 },
+  2021: { prozent: 15.2, max:  722 },
+  2022: { prozent: 14.4, max:  684 },
+  2023: { prozent: 13.6, max:  646 },
+  2024: { prozent: 12.8, max:  608 },
+  2025: { prozent: 12.0, max:  570 },
+  2026: { prozent: 11.2, max:  532 },
+  2027: { prozent: 10.4, max:  494 },
+  2028: { prozent:  9.6, max:  456 },
+  2029: { prozent:  8.8, max:  418 },
+  2030: { prozent:  8.0, max:  380 },
+  2031: { prozent:  7.2, max:  342 },
+  2032: { prozent:  6.4, max:  304 },
+  2033: { prozent:  5.6, max:  266 },
+  2034: { prozent:  4.8, max:  228 },
+  2035: { prozent:  4.0, max:  190 },
+  2036: { prozent:  3.2, max:  152 },
+  2037: { prozent:  2.4, max:  114 },
+  2038: { prozent:  1.6, max:   76 },
+  2039: { prozent:  0.8, max:   38 },
+  2040: { prozent:  0.0, max:    0 },
+}
+
+/**
+ * Berechnet den Altersentlastungsbetrag (§ 24a EStG, PAP Anlage 2).
+ * Basis: Bruttolohn (Jahreswert). Qualifikation: Alter ≥ 64 im Steuerjahr.
+ */
+export function altersentlastungsbetragJahr(
+  bruttoJahr: number,
+  geburtsjahr: number,
+  steuerjahr: number
+): { betrag: number; prozent: number; max: number } {
+  if (steuerjahr - geburtsjahr < 64) return { betrag: 0, prozent: 0, max: 0 }
+
+  const year64 = geburtsjahr + 64
+  // Kohortenjahr: frühestens 2005 (max. Satz), spätestens 2040 (dann 0%)
+  const cohortYear = Math.min(Math.max(year64, 2005), 2040)
+  const e = ALT_ENTLASTUNG[cohortYear] ?? { prozent: 0, max: 0 }
+
+  const betrag = Math.min(Math.floor(bruttoJahr * e.prozent / 100), e.max)
+  return { betrag, prozent: e.prozent, max: e.max }
 }
 
 // ============================================================================
@@ -512,18 +582,32 @@ export function berechneLohnsteuer(
   )
 
   // Vorsorgepauschale = AN-Anteile RV + KV + PV (nicht ALV!)
-  // Vereinfacht (PAP 2026, § 10 EStG): RV-Anteil + KV-Pauschal-Anteil (ohne Krankengeld) + PV
-  const vorsorgepauschale = rvJahr + kvResult.beitrag + pvResult.beitrag
+  // Bei privater KV: VKV × 12 (PAP VKV-Parameter) statt GKV-Anteil
+  const pkvVorsorge = (!eingabe.kvGesetzlich && eingabe.kvMonatsbeitragPKV && eingabe.kvMonatsbeitragPKV > 0)
+    ? eingabe.kvMonatsbeitragPKV * 12
+    : 0
+  const vorsorgepauschale = rvJahr + kvResult.beitrag + pvResult.beitrag + pkvVorsorge
 
-  schritte.push({
-    nr: ++schrittNr,
-    titel: 'Vorsorgepauschale berechnen',
-    beschreibung: 'Summe der Sozialversicherungsbeiträge AN (ohne ALV)',
-    formel: 'RV + KV + PV',
-    eingabe: `${rvJahr.toFixed(2)} + ${kvResult.beitrag.toFixed(2)} + ${pvResult.beitrag.toFixed(2)}`,
-    ergebnis: `${vorsorgepauschale.toFixed(2)} EUR`,
-    papReferenz: 'PAP S. 11, § 10 EStG',
-  })
+  {
+    const gkvTeil = kvResult.beitrag + pvResult.beitrag
+    const vorsorgeBeschreibung = pkvVorsorge > 0
+      ? `RV + PKV/PPV-Monatsbeitrag × 12 (VKV)`
+      : `RV + GKV-KV + GKV-PV`
+    const vorsorgeFörmel = pkvVorsorge > 0
+      ? `${rvJahr.toFixed(2)} + ${pkvVorsorge.toFixed(2)}`
+      : `${rvJahr.toFixed(2)} + ${kvResult.beitrag.toFixed(2)} + ${pvResult.beitrag.toFixed(2)}`
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Vorsorgepauschale berechnen',
+      beschreibung: vorsorgeBeschreibung,
+      formel: vorsorgeFörmel,
+      eingabe: pkvVorsorge > 0
+        ? `RV = ${rvJahr.toFixed(2)}, PKV-Monat = ${eingabe.kvMonatsbeitragPKV?.toFixed(2)}`
+        : `RV = ${rvJahr.toFixed(2)}, KV = ${kvResult.beitrag.toFixed(2)}, PV = ${pvResult.beitrag.toFixed(2)}`,
+      ergebnis: `${vorsorgepauschale.toFixed(2)} EUR`,
+      papReferenz: 'PAP S. 11, § 10 EStG (VKV/VKVges)',
+    })
+  }
 
   // ============================================
   // 3. Zu versteuerndes Einkommen ermitteln
@@ -551,19 +635,63 @@ export function berechneLohnsteuer(
     papReferenz: 'PAP S. 11, § 9a EStG (WP), § 10c EStG (SP)',
   })
 
+  // ============================================
+  // 3b. Altersentlastungsbetrag (§ 24a EStG, PAP Anlage 2)
+  // ============================================
+  let altBetrag = 0
+  let altProzent = 0
+  let altMax = 0
+  if (eingabe.geburtsjahr) {
+    const altResult = altersentlastungsbetragJahr(bruttoJahr, eingabe.geburtsjahr, params.jahr)
+    altBetrag = altResult.betrag
+    altProzent = altResult.prozent
+    altMax = altResult.max
+
+    if (altBetrag > 0) {
+      zvE = Math.max(0, zvE - altBetrag)
+      schritte.push({
+        nr: ++schrittNr,
+        titel: 'Altersentlastungsbetrag',
+        beschreibung: `${altProzent}% des Bruttoarbeitslohns, max. ${altMax} EUR (Kohorte ${eingabe.geburtsjahr + 64})`,
+        formel: `min(${bruttoJahr.toFixed(2)} × ${altProzent}%, ${altMax})`,
+        eingabe: `Geburtsjahr ${eingabe.geburtsjahr}, Alter ${params.jahr - eingabe.geburtsjahr}`,
+        ergebnis: `−${altBetrag.toFixed(2)} EUR → zvE = ${zvE.toFixed(2)} EUR`,
+        papReferenz: 'PAP Anlage 2, § 24a EStG',
+      })
+    }
+  }
+
   // Kinderfreibetrag (NUR für SolZ und Kirchensteuer relevant, nicht für LSt!)
   const kinderfreibetragGesamt = eingabe.kinderfreibetraege * params.kinderfreibetragJahr
 
   // ============================================
   // 4. Lohnsteuer berechnen
   // ============================================
-  const lstJahr = steuerklasseAnpassung(zvE, eingabe.steuerklasse, params)
+  let lstJahr = steuerklasseAnpassung(zvE, eingabe.steuerklasse, params)
   const tarifInfo = berechneTarif(zvE, params)
+
+  // Faktor STKL IV (§ 39f EStG): Lohnsteuer × Faktor F
+  const faktor4 = (eingabe.steuerklasse === 4 && eingabe.faktor4 && eingabe.faktor4 > 0 && eingabe.faktor4 < 1)
+    ? eingabe.faktor4
+    : 1.0
+  if (faktor4 < 1.0) {
+    const lstVorFaktor = lstJahr
+    lstJahr = Math.floor(lstJahr * faktor4)
+    schritte.push({
+      nr: ++schrittNr,
+      titel: 'Faktorverfahren STKL IV',
+      beschreibung: `Lohnsteuer × Faktor F (§ 39f EStG)`,
+      formel: `${lstVorFaktor.toFixed(2)} × ${faktor4.toFixed(3)}`,
+      eingabe: `LSt vor Faktor = ${lstVorFaktor.toFixed(2)} EUR, F = ${faktor4.toFixed(3)}`,
+      ergebnis: `${lstJahr.toFixed(2)} EUR`,
+      papReferenz: 'PAP S. 13, § 39f EStG',
+    })
+  }
 
   schritte.push({
     nr: ++schrittNr,
     titel: 'Lohnsteuer berechnen',
-    beschreibung: `Tarif nach § 32a EStG, Steuerklasse ${eingabe.steuerklasse}`,
+    beschreibung: `Tarif nach § 32a EStG, Steuerklasse ${eingabe.steuerklasse}${faktor4 < 1.0 ? ` × Faktor ${faktor4.toFixed(3)}` : ''}`,
     formel: `Tarifformel Zone ${tarifInfo.zone}`,
     eingabe: `zvE = ${zvE.toFixed(2)} EUR, STKL ${eingabe.steuerklasse}`,
     ergebnis: `${lstJahr.toFixed(2)} EUR (Jahres-LSt)`,
@@ -741,6 +869,9 @@ export function berechneLohnsteuer(
       rvSatzAN: params.rvSatzGesamt / 2,
       alvSatzAN: params.alvSatzGesamt / 2,
       tarifZone: tarifInfo.zone,
+      altersentlastungsbetrag: vonJahr(altBetrag, eingabe.lohnZZ),
+      pkvVorsorgepauschale: vonJahr(pkvVorsorge, eingabe.lohnZZ),
+      faktor4Angewandt: faktor4,
     },
     schritte,
   }

@@ -131,6 +131,32 @@ Zuschläge/Abschläge AN:
 
 BBG = wie KV (69.750 EUR/Jahr)`,
   },
+  faktor4: {
+    titel: 'Faktorverfahren STKL IV (PAP S. 13)',
+    paragraf: '§ 39f EStG – Faktorverfahren bei Steuerklasse IV',
+    beschreibung: `Das Faktorverfahren gilt für Ehegatten/Lebenspartner in STKL IV, die ihre Steuerbelastung gleichmäßiger verteilen möchten.
+
+Berechnung:
+• Faktor F = ESt auf Gesamteinkommen (Splitting) / Summe der Einzeleinkommenssteuern
+• Lohnsteuer = LSt STKL IV × F
+• 0 < F ≤ 1,0 (in der Regel 0,6 – 0,9)
+
+Der Faktor wird vom Finanzamt auf der Lohnsteuerkarte eingetragen und gilt für ein Kalenderjahr.`,
+    beispiel: 'F = 0,750: LSt 1.000 EUR × 0,750 = 750 EUR tatsächliche Lohnsteuer',
+  },
+  pkvmonat: {
+    titel: 'PKV-Monatsbeitrag (PAP S. 11)',
+    paragraf: '§ 10 EStG – Vorsorgepauschale bei privater KV (VKV)',
+    beschreibung: `Bei privater Kranken- und Pflegeversicherung (PKPV=1) wird der tatsächliche Monatsbeitrag (VKV) in der Vorsorgepauschale berücksichtigt.
+
+PAP-Variable: VKV (Monatsbeitrag KV+PV)
+Jahresbetrag: VKV × 12
+
+Die Vorsorgepauschale vermindert das zu versteuernde Einkommen. Bei privater KV wird der tatsächliche Beitrag angesetzt, nicht ein GKV-Pauschalwert.
+
+Hinweis: Der PKV-Beitrag selbst erscheint NICHT als Lohnabzug (er wird privat bezahlt), reduziert aber die Steuerlast.`,
+    beispiel: 'Monatsbeitrag 450 EUR → Vorsorgepauschale + 5.400 EUR/Jahr → ca. 1.800 EUR weniger Lohnsteuer',
+  },
   sonstbez: {
     titel: 'Sonstige Bezüge (PAP S. 14-15)',
     paragraf: '§ 39b Abs. 3 EStG – Vergleichsrechnung',
@@ -176,6 +202,8 @@ function getEingabe(): LohnsteuerEingabe {
 
   const vJBruttoVal = parseFloat($i('vJBrutto').value)
   const sonsteBezVal = parseFloat($i('sonsteBezuege').value)
+  const faktor4Val = parseFloat($i('faktor4').value)
+  const pkvMonatVal = parseFloat($i('kvMonatPKV').value)
 
   return {
     bruttolohn: parseFloat($i('bruttolohn').value) || 0,
@@ -194,6 +222,8 @@ function getEingabe(): LohnsteuerEingabe {
     kirchensteuerSatz: kirchSatz > 0 ? kirchSatz : undefined,
     vJBrutto: !isNaN(vJBruttoVal) && vJBruttoVal > 0 ? vJBruttoVal : undefined,
     sonsteBezuege: !isNaN(sonsteBezVal) && sonsteBezVal > 0 ? sonsteBezVal : undefined,
+    faktor4: !isNaN(faktor4Val) && faktor4Val > 0 && faktor4Val < 1 ? faktor4Val : undefined,
+    kvMonatsbeitragPKV: !isNaN(pkvMonatVal) && pkvMonatVal > 0 && !kvGesetzlich ? pkvMonatVal : undefined,
   }
 }
 
@@ -667,11 +697,29 @@ function setupTabs(): void {
 // INIT
 // ============================================================================
 
+function updateDynamicFields(): void {
+  const stkl = parseInt($s('stkl').value)
+  const kvGesl = $s('kvGesetzlich').value === '1'
+
+  // Faktor4: nur bei STKL IV
+  const rowFaktor4 = document.getElementById('row-faktor4') as HTMLElement | null
+  if (rowFaktor4) rowFaktor4.style.display = stkl === 4 ? '' : 'none'
+
+  // GKV-Felder: nur bei gesetzlicher KV
+  const rowKvZusatz = document.getElementById('row-kv-zusatz') as HTMLElement | null
+  if (rowKvZusatz) rowKvZusatz.style.display = kvGesl ? '' : 'none'
+
+  // PKV-Monatsbeitrag: nur bei privater KV
+  const rowPkvMonat = document.getElementById('row-pkv-monat') as HTMLElement | null
+  if (rowPkvMonat) rowPkvMonat.style.display = !kvGesl ? '' : 'none'
+}
+
 function setupEventListeners(): void {
   const fields = [
     'lohnZZ', 'stkl', 'bruttolohn', 'freibetrag', 'kinder', 'geburtsjahr',
     'rvVersichert', 'kvGesetzlich', 'kvZusatz', 'pvKinderlos', 'pvSachsen',
     'westOst', 'kirchensteuer',
+    'vJBrutto', 'sonsteBezuege', 'faktor4', 'kvMonatPKV',
   ]
 
   for (const id of fields) {
@@ -681,6 +729,10 @@ function setupEventListeners(): void {
       el.addEventListener('change', berechne)
     }
   }
+
+  // Dynamische Feldanzeige bei STKL- und KV-Wechsel
+  $s('stkl').addEventListener('change', updateDynamicFields)
+  $s('kvGesetzlich').addEventListener('change', updateDynamicFields)
 
   // Year-Wechsel
   $s('yearSelect').addEventListener('change', () => {
@@ -719,6 +771,7 @@ function setupEventListeners(): void {
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs()
   setupEventListeners()
+  updateDynamicFields()
   setupPAPImport()
   berechne()
   console.log('✅ LexLohnRechner v2.0 geladen')
